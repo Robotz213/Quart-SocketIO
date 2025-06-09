@@ -1,8 +1,7 @@
 import asyncio  # noqa: D100
 
-from quart import Quart, request, websocket
+from quart import Quart, websocket
 
-import quart_socketio
 from quart_socketio import SocketIO
 
 app = Quart(__name__)
@@ -16,18 +15,18 @@ async def index():  # noqa: ANN201, D103
 
 
 @io.on("connect", namespace="/")  # noqa: ANN201, D102, D103
-def on_connect():  # noqa: ANN201, D102, D103
+async def on_connect():  # noqa: ANN201, D102, D103
     print(websocket.headers)  # noqa: T201
     print("Client connected")  # noqa: T201
 
 
 @io.on("disconnect", namespace="/")  # noqa: ANN201, D102, D103
-def on_disconnect():  # noqa: ANN201, D102, D103
+async def on_disconnect():  # noqa: ANN201, D102, D103
     print("Client disconnected")  # noqa: T201
 
 
 @io.on("test", namespace="/")  # noqa: ANN201, D102, D103
-def on_test(data):  # noqa: ANN001, ANN201, D102, D103, N805
+async def on_test(data):  # noqa: ANN001, ANN201, D102, D103, N805
     print("Test event received:", data)  # noqa: T201
     io.emit("response", {"data": "Test event received"}, namespace="/")
 

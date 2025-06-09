@@ -775,11 +775,11 @@ class SocketIO:
                 if message == "connect":
                     auth = args[1] if len(args) > 1 else None
                     try:
-                        ret = handler(auth)
+                        ret = await handler(auth)
                     except TypeError:
-                        ret = handler()
+                        ret = await handler()
                 else:
-                    ret = handler(*args)
+                    ret = await handler(*args)
             except SocketIOConnectionRefusedError:
                 raise  # let this error bubble up to python-socketio
             except Exception as e:
