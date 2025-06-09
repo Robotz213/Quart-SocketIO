@@ -1,9 +1,7 @@
 [project]
 name = "Flask-SocketIO"
-version = "5.5.2.dev0"
-authors = [
-    { name = "Miguel Grinberg", email = "miguel.grinberg@gmail.com" },
-]
+version = "1.0.0"
+authors = [{ name = "Miguel Grinberg", email = "miguel.grinberg@gmail.com" }]
 description = "Socket.IO integration for Flask applications"
 classifiers = [
     "Environment :: Web Environment",
@@ -12,11 +10,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.6"
-dependencies = [
-    "Flask >= 0.9",
-    "python-socketio >= 5.12.0",
-]
+requires-python = ">=3.12"
+dependencies = ["Flask >= 0.9", "python-socketio >= 5.12.0"]
 
 [project.readme]
 file = "README.md"
@@ -27,9 +22,7 @@ Homepage = "https://github.com/miguelgrinberg/flask-socketio"
 "Bug Tracker" = "https://github.com/miguelgrinberg/flask-socketio/issues"
 
 [project.optional-dependencies]
-docs = [
-    "sphinx",
-]
+docs = ["sphinx"]
 
 [tool.setuptools]
 zip-safe = false
@@ -39,13 +32,9 @@ include-package-data = true
 "" = "src"
 
 [tool.setuptools.packages.find]
-where = [
-    "src",
-]
+where = ["src"]
 namespaces = false
 
 [build-system]
-requires = [
-    "setuptools>=61.2",
-]
+requires = ["setuptools>=61.2"]
 build-backend = "setuptools.build_meta"
