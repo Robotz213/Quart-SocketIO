@@ -13,11 +13,34 @@ from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefu
 
 from ._manager import _ManagedSession
 from ._middleare import _SocketIOMiddleware
-from .namespace import Namespace
+from ._namespace import Namespace
+from ._utils import (
+    call,
+    close_room,
+    disconnect,
+    emit,
+    join_room,
+    leave_room,
+    rooms,
+    send,
+)
 from .test_client import SocketIOTestClient
 
 TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
 TFunction = TypeVar("TFunction", bound=Callable[..., Any])
+
+__all__ = [
+    "close_room",
+    "disconnect",
+    "emit",
+    "call",
+    "send",
+    "join_room",
+    "leave_room",
+    "rooms",
+    "Namespace",
+    "SocketIOTestClient",
+]
 
 
 class SocketIO:
@@ -103,7 +126,7 @@ class SocketIO:
 
     reason: Any = socketio.Server.reason
 
-    def __init__(self, app: Optional[Quart] = None, **kwargs: Union[str, bool, float, dict, None]) -> None:
+    async def __init__(self, app: Optional[Quart] = None, **kwargs: Union[str, bool, float, dict, None]) -> None:
         """
         Initialize the SocketIO server for async WebSocket communication.
 
@@ -115,7 +138,7 @@ class SocketIO:
         """
         self.server: Optional[socketio.Server] = None
         self.server_options: dict[str, Any] = {}
-        self.asgi_server: Any = None
+        self.asgi_server = None
         self.handlers: list[Any] = []
         self.namespace_handlers: list[Any] = []
         self.exception_handlers: dict[str, Callable[..., Any]] = {}
@@ -152,7 +175,7 @@ class SocketIO:
             write_only = app is None
             if url:
                 if url.startswith(("redis://", "rediss://")):
-                    queue_class = socketio.RedisManager
+                    queue_class = socketio.AsyncRedisManager
                 elif url.startswith("kafka://"):
                     queue_class = socketio.KafkaManager
                 elif url.startswith("zmq"):
@@ -549,7 +572,7 @@ class SocketIO:
         """
         self.server.close_room(room, namespace)
 
-    def run(self, app: Quart, host: Optional[str] = None, port: Optional[int] = None, **kwargs: Any) -> None:
+    async def run(self, app: Quart, host: Optional[str] = None, port: Optional[int] = None, **kwargs: Any) -> None:
         """Run the SocketIO web server.
 
         :param app: The Flask application instance.
@@ -572,16 +595,14 @@ class SocketIO:
                            Defaults to ``True`` in debug mode, ``False``
                            in normal mode. Unused when the threading async
                            mode is used.
-        :param allow_unsafe_werkzeug: Set to ``True`` to allow the use of the
-                                      Werkzeug web server in a production
-                                      setting. Default is ``False``. Set to
-                                      ``True`` at your own risk.
         :param kwargs: Additional web server options. The web server options
                        are specific to the server used in each of the supported
                        async modes. Note that options provided here will
                        not be seen when using an external web server such
                        as gunicorn, since this method is not called in that
                        case.
+        :param async_mode: The async mode to use for the server. This can be
+                          one of "uvicorn", or "hypercorn" (Default: uvicorn).
         """
         if host is None:
             host = "127.0.0.1"
@@ -599,6 +620,16 @@ class SocketIO:
         reloader_options: Dict[str, Any] = kwargs.pop("reloader_options", {})
         if extra_files:
             reloader_options["extra_files"] = extra_files
+
+        if kwargs.get("async_mode") == "uvicorn":
+            from quart_socketio._uvicorn import run_uvicorn
+
+            self.asgi_server = await run_uvicorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
+
+        elif kwargs.get("async_mode") == "hypercorn":
+            from quart_socketio._hypercorn import run_hypercorn
+
+            await run_hypercorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
 
     def stop(self) -> None:
         """Stop a running SocketIO web server.
@@ -734,297 +765,3 @@ class SocketIO:
                     resp = app.response_class()
                     app.session_interface.save_session(app, session_obj, resp)
             return ret
-
-
-def emit(event: str, *args: Any, **kwargs: Any) -> None:
-    """Emit a SocketIO event.
-
-    This function emits a SocketIO event to one or more connected clients. A
-    JSON blob can be attached to the event as payload. This is a function that
-    can only be called from a SocketIO event handler, as in obtains some
-    information from the current client context. Example::
-
-        @socketio.on("my event")
-        def handle_my_custom_event(json):
-            emit("my response", {"data": 42})
-
-    :param event: The name of the user event to emit.
-    :param args: A dictionary with the JSON data to send as payload.
-    :param namespace: The namespace under which the message is to be sent.
-                      Defaults to the namespace used by the originating event.
-                      A ``'/'`` can be used to explicitly specify the global
-                      namespace.
-    :param callback: Callback function to invoke with the client's
-                     acknowledgement.
-    :param broadcast: ``True`` to send the message to all clients, or ``False``
-                      to only reply to the sender of the originating event.
-    :param to: Send the message to all the users in the given room, or to the
-               user with the given session ID. If this argument is not set and
-               ``broadcast`` is ``False``, then the message is sent only to the
-               originating user.
-    :param include_self: ``True`` to include the sender when broadcasting or
-                         addressing a room, or ``False`` to send to everyone
-                         but the sender.
-    :param skip_sid: The session id of a client to ignore when broadcasting
-                     or addressing a room. This is typically set to the
-                     originator of the message, so that everyone except
-                     that client receive the message. To skip multiple sids
-                     pass a list.
-    :param ignore_queue: Only used when a message queue is configured. If
-                         set to ``True``, the event is emitted to the
-                         clients directly, without going through the queue.
-                         This is more efficient, but only works when a
-                         single server process is used, or when there is a
-                         single addressee. It is recommended to always leave
-                         this parameter with its default value of ``False``.
-    """
-    if "namespace" in kwargs:
-        namespace = kwargs["namespace"]
-    else:
-        namespace = request.namespace
-    callback = kwargs.get("callback")
-    broadcast = kwargs.get("broadcast")
-    to = kwargs.pop("to", None) or kwargs.pop("room", None)
-    if to is None and not broadcast:
-        to = request.sid
-    include_self = kwargs.get("include_self", True)
-    skip_sid = kwargs.get("skip_sid")
-    ignore_queue = kwargs.get("ignore_queue", False)
-
-    socketio = quart.current_app.extensions["socketio"]
-    return socketio.emit(
-        event,
-        *args,
-        namespace=namespace,
-        to=to,
-        include_self=include_self,
-        skip_sid=skip_sid,
-        callback=callback,
-        ignore_queue=ignore_queue,
-    )
-
-
-def call(event: str, *args: Any, **kwargs: Any) -> Any:
-    """Emit a SocketIO event and wait for the response.
-
-    This function issues an emit with a callback and waits for the callback to
-    be invoked by the client before returning. If the callback isn’t invoked
-    before the timeout, then a TimeoutError exception is raised. If the
-    Socket.IO connection drops during the wait, this method still waits until
-    the specified timeout. Example::
-
-        def get_status(client, data):
-            status = call("status", {"data": data}, to=client)
-
-    :param event: The name of the user event to emit.
-    :param args: A dictionary with the JSON data to send as payload.
-    :param namespace: The namespace under which the message is to be sent.
-                      Defaults to the namespace used by the originating event.
-                      A ``'/'`` can be used to explicitly specify the global
-                      namespace.
-    :param to: The session ID of the recipient client. If this argument is not
-               given, the event is sent to the originating client.
-    :param timeout: The waiting timeout. If the timeout is reached before the
-                    client acknowledges the event, then a ``TimeoutError``
-                    exception is raised. The default is 60 seconds.
-    :param ignore_queue: Only used when a message queue is configured. If
-                         set to ``True``, the event is emitted to the
-                         client directly, without going through the queue.
-                         This is more efficient, but only works when a
-                         single server process is used, or when there is a
-                         single addressee. It is recommended to always leave
-                         this parameter with its default value of ``False``.
-    """
-    if "namespace" in kwargs:
-        namespace = kwargs["namespace"]
-    else:
-        namespace = request.namespace
-    to = kwargs.pop("to", None) or kwargs.pop("room", None)
-    if to is None:
-        to = request.sid
-    timeout = kwargs.get("timeout", 60)
-    ignore_queue = kwargs.get("ignore_queue", False)
-
-    socketio = quart.current_app.extensions["socketio"]
-    return socketio.call(
-        event,
-        *args,
-        namespace=namespace,
-        to=to,
-        ignore_queue=ignore_queue,
-        timeout=timeout,
-    )
-
-
-def send(message: Any, **kwargs: Any) -> None:
-    """Send a SocketIO message.
-
-    This function sends a simple SocketIO message to one or more connected
-    clients. The message can be a string or a JSON blob. This is a simpler
-    version of ``emit()``, which should be preferred. This is a function that
-    can only be called from a SocketIO event handler.
-
-    :param message: The message to send, either a string or a JSON blob.
-    :param json: ``True`` if ``message`` is a JSON blob, ``False``
-                     otherwise.
-    :param namespace: The namespace under which the message is to be sent.
-                      Defaults to the namespace used by the originating event.
-                      An empty string can be used to use the global namespace.
-    :param callback: Callback function to invoke with the client's
-                     acknowledgement.
-    :param broadcast: ``True`` to send the message to all connected clients, or
-                      ``False`` to only reply to the sender of the originating
-                      event.
-    :param to: Send the message to all the users in the given room, or to the
-               user with the given session ID. If this argument is not set and
-               ``broadcast`` is ``False``, then the message is sent only to the
-               originating user.
-    :param include_self: ``True`` to include the sender when broadcasting or
-                         addressing a room, or ``False`` to send to everyone
-                         but the sender.
-    :param skip_sid: The session id of a client to ignore when broadcasting
-                     or addressing a room. This is typically set to the
-                     originator of the message, so that everyone except
-                     that client receive the message. To skip multiple sids
-                     pass a list.
-    :param ignore_queue: Only used when a message queue is configured. If
-                         set to ``True``, the event is emitted to the
-                         clients diretamente, sem passar pela fila.
-                         Isso é mais eficiente, mas só funciona quando um
-                         único processo de servidor é usado, ou quando há um
-                         único destinatário. É recomendável deixar sempre este
-                         parâmetro com seu valor padrão ``False``.
-    """
-    json = kwargs.get("json", False)
-    if "namespace" in kwargs:
-        namespace = kwargs["namespace"]
-    else:
-        namespace = request.namespace
-    callback = kwargs.get("callback")
-    broadcast = kwargs.get("broadcast")
-    to = kwargs.pop("to", None) or kwargs.pop("room", None)
-    if to is None and not broadcast:
-        to = request.sid
-    include_self = kwargs.get("include_self", True)
-    skip_sid = kwargs.get("skip_sid")
-    ignore_queue = kwargs.get("ignore_queue", False)
-
-    socketio = quart.current_app.extensions["socketio"]
-    return socketio.send(
-        message,
-        json=json,
-        namespace=namespace,
-        to=to,
-        include_self=include_self,
-        skip_sid=skip_sid,
-        callback=callback,
-        ignore_queue=ignore_queue,
-    )
-
-
-def join_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
-    """Join a room.
-
-    This function puts the user in a room, under the current namespace. The
-    user and the namespace are obtained from the event context. This is a
-    function that can only be called from a SocketIO event handler. Example::
-
-        @socketio.on("join")
-        def on_join(data):
-            username = session["username"]
-            room = data["room"]
-            join_room(room)
-            send(username + " has entered the room.", to=room)
-
-    :param room: The name of the room to join.
-    :param sid: The session id of the client. If not provided, the client is
-                obtained from the request context.
-    :param namespace: The namespace for the room. If not provided, the
-                      namespace is obtained from the request context.
-    """
-    socketio = quart.current_app.extensions["socketio"]
-    sid = sid or request.sid
-    namespace = namespace or request.namespace
-    socketio.server.enter_room(sid, room, namespace=namespace)
-
-
-def leave_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
-    """Leave a room.
-
-    This function removes the user from a room, under the current namespace.
-    The user and the namespace are obtained from the event context. Example::
-
-        @socketio.on("leave")
-        def on_leave(data):
-            username = session["username"]
-            room = data["room"]
-            leave_room(room)
-            send(username + " has left the room.", to=room)
-
-    :param room: The name of the room to leave.
-    :param sid: The session id of the client. If not provided, the client is
-                obtained from the request context.
-    :param namespace: The namespace for the room. If not provided, the
-                      namespace is obtained from the request context.
-    """
-    socketio = quart.current_app.extensions["socketio"]
-    sid = sid or request.sid
-    namespace = namespace or request.namespace
-    socketio.server.leave_room(sid, room, namespace=namespace)
-
-
-def close_room(room: str, namespace: Optional[str] = None) -> None:
-    """Close a room.
-
-    This function removes any users that are in the given room and then deletes
-    the room from the server.
-
-    :param room: The name of the room to close.
-    :param namespace: The namespace for the room. If not provided, the
-                      namespace is obtained from the request context.
-    """
-    socketio = quart.current_app.extensions["socketio"]
-    namespace = namespace or request.namespace
-    socketio.server.close_room(room, namespace=namespace)
-
-
-def rooms(sid: Optional[str] = None, namespace: Optional[str] = None) -> list[str]:
-    """Return a list of the rooms the client is in.
-
-    This function returns all the rooms the client has entered, including its
-    own room, assigned by the Socket.IO server.
-
-    :param sid: The session id of the client. If not provided, the client is
-                obtained from the request context.
-    :param namespace: The namespace for the room. If not provided, the
-                      namespace is obtained from the request context.
-    """
-    socketio = quart.current_app.extensions["socketio"]
-    sid = sid or request.sid
-    namespace = namespace or request.namespace
-    return socketio.server.rooms(sid, namespace=namespace)
-
-
-def disconnect(sid: Optional[str] = None, namespace: Optional[str] = None, silent: bool = False) -> Any:
-    """Disconnect the client.
-
-    This function terminates the connection with the client. As a result of
-    this call the client will receive a disconnect event. Example::
-
-        @socketio.on('message')
-        def receive_message(msg):
-            if is_banned(session['username']):
-                disconnect()
-            else:
-                # ...
-
-    :param sid: The session id of the client. If not provided, the client is
-                obtained from the request context.
-    :param namespace: The namespace for the room. If not provided, the
-                      namespace is obtained from the request context.
-    :param silent: this option is deprecated.
-    """
-    socketio = quart.current_app.extensions["socketio"]
-    sid = sid or request.sid
-    namespace = namespace or request.namespace
-    return socketio.server.disconnect(sid, namespace=namespace)
