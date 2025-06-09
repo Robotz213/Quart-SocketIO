@@ -762,11 +762,6 @@ class SocketIO:
                     ctx = quart._websocket_ctx_stack.top  # noqa: SLF001
                 ctx.session = session_obj
             else:
-                # let Flask handle the user session
-                # for cookie based sessions, this effectively freezes the
-                # session to its state at connection time
-                # for server-side sessions, this allows HTTP and Socket.IO to
-                # share the session, with both having read/write access to it
                 session_obj = session._get_current_object()  # noqa: SLF001
             websocket.sid = sid
             websocket.namespace = namespace
