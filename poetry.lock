@@ -561,27 +561,6 @@ werkzeug = ">=3.0"
 dotenv = ["python-dotenv"]
 
 [[package]]
-name = "Quart-Login"
-version = "0.6.1"
-description = "User authentication and session management for Quart."
-optional = false
-python-versions = ">=3.7"
-groups = ["main"]
-files = []
-develop = false
-
-[package.dependencies]
-Flask = ">=1.0.4"
-Quart = ">=0.17.0"
-Werkzeug = ">=2.0.0"
-
-[package.source]
-type = "git"
-url = "https://github.com/0000matteo0000/quart-login.git"
-reference = "HEAD"
-resolved_reference = "58c78d4fdc43c8dac0b1d52ea1b03cf19fd55340"
-
-[[package]]
 name = "quart-session"
 version = "3.0.0"
 description = "Adds server-side session support to your Quart application"
@@ -892,4 +871,4 @@ docs = ["sphinx"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "850888d62128459ac25c65db75a92913de7878118512a01f72375c107134d306"
+content-hash = "c4cb6e6916ed8cbd26db6f870aa9d13a5d0dec97da7ed24f00c9d056c91ab14a"
