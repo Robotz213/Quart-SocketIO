@@ -1,8 +1,11 @@
-from typing import Any, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Optional
 
 from quart import current_app, request
 
-from quart_socketio import SocketIO
+if TYPE_CHECKING:
+    from quart_socketio import SocketIO
 
 
 async def emit(event: str, *args: Any, **kwargs: Any) -> None:
