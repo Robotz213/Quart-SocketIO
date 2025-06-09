@@ -16,7 +16,6 @@ async def index():  # noqa: ANN201, D103
 
 @io.on("connect", namespace="/")  # noqa: ANN201, D102, D103
 async def on_connect():  # noqa: ANN201, D102, D103
-    print(websocket.headers)  # noqa: T201
     print("Client connected")  # noqa: T201
 
 
@@ -28,7 +27,7 @@ async def on_disconnect():  # noqa: ANN201, D102, D103
 @io.on("test", namespace="/")  # noqa: ANN201, D102, D103
 async def on_test(data):  # noqa: ANN001, ANN201, D102, D103, N805
     print("Test event received:", data)  # noqa: T201
-    io.emit("response", {"data": "Test event received"}, namespace="/")
+    await io.emit("response", {"data": "Test event received"}, namespace="/")
 
 
 async def main() -> None:
