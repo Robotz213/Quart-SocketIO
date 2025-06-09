@@ -7,20 +7,20 @@ from werkzeug.test import EnvironBuilder
 
 class SocketIOTestClient:
     """
-    This class is useful for testing a Flask-SocketIO server. It works in a
-    similar way to the Flask Test Client, but adapted to the Socket.IO server.
+    Class is useful for testing a Quart-SocketIO server.
 
-    :param app: The Flask application instance.
+    :param app: The Quart application instance.
     :param socketio: The application's ``SocketIO`` instance.
     :param namespace: The namespace for the client. If not provided, the client
                       connects to the server on the global namespace.
+
     :param query_string: A string with custom query string arguments.
     :param headers: A dictionary with custom HTTP headers.
     :param auth: Optional authentication data, given as a dictionary.
-    :param quart_test_client: The instance of the Flask test client
-                              currently in use. Passing the Flask test
+    :param quart_test_client: The instance of the Quart test client
+                              currently in use. Passing the Quart test
                               client is optional, but is necessary if you
-                              want the Flask user session and any other
+                              want the Quart user session and any other
                               cookies set in HTTP routes accessible from
                               Socket.IO events.
     """
@@ -121,7 +121,7 @@ class SocketIOTestClient:
         environ = EnvironBuilder(url, headers=headers).get_environ()
         environ["quart.app"] = self.app
         if self.quart_test_client:
-            # inject cookies from Flask
+            # inject cookies from Quart
             if hasattr(self.quart_test_client, "_add_cookies_to_asgi"):
                 # quart >= 2.3
                 self.quart_test_client._add_cookies_to_asgi(environ)

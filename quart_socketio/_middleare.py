@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 import socketio
 from quart import Quart
@@ -13,12 +13,10 @@ class _SocketIOMiddleware(socketio.ASGIApp):
         self.quart_app = quart_app
         super().__init__(socketio_app, quart_app.asgi_app, socketio_path=socketio_path)
 
-    from typing import Callable
-
-    def __call__(self, environ: dict, start_response: Callable) -> Any:
+    async def __call__(self, environ: dict, start_response: Callable) -> Any:
         environ = environ.copy()
         environ["quart.app"] = self.quart_app
-        return super().__call__(environ, start_response)
+        return await super().__call__(environ, start_response)
 
 
 __all__ = ["_SocketIOMiddleware"]

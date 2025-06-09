@@ -124,7 +124,7 @@ class SocketIO:
 
     """
 
-    reason: Any = socketio.Server.reason
+    reason: Any = socketio.AsyncServer.reason
 
     async def __init__(self, app: Optional[Quart] = None, **kwargs: Union[str, bool, float, dict, None]) -> None:
         """
@@ -136,7 +136,7 @@ class SocketIO:
             **kwargs: Additional Socket.IO and Engine.IO server options.
 
         """
-        self.server: Optional[socketio.Server] = None
+        self.server: Optional[socketio.AsyncServer] = None
         self.server_options: dict[str, Any] = {}
         self.asgi_server = None
         self.handlers: list[Any] = []
@@ -209,7 +209,7 @@ class SocketIO:
         if os.environ.get("FLASK_RUN_FROM_CLI"):
             if self.server_options.get("async_mode") is None:
                 self.server_options["async_mode"] = "threading"
-        self.server = socketio.Server(**self.server_options)
+        self.server = socketio.AsyncServer(**self.server_options)
         self.async_mode = self.server.async_mode
         for handler in self.handlers:
             self.server.on(handler[0], handler[1], namespace=handler[2])
@@ -392,7 +392,7 @@ class SocketIO:
         else:
             self.namespace_handlers.append(namespace_handler)
 
-    def emit(self, event: str, *args: Any, **kwargs: Any) -> None:
+    async def emit(self, event: str, *args: Any, **kwargs: Any) -> None:
         """Emit a server generated SocketIO event.
 
         This function emits a SocketIO event to one or more connected clients.
@@ -452,7 +452,7 @@ class SocketIO:
                 # we only use it if the emit was issued from a Socket.IO
                 # populated request context (i.e. request.sid is defined)
                 callback = _callback_wrapper
-        self.server.emit(
+        await self.server.emit(
             event,
             *args,
             namespace=namespace,
@@ -462,7 +462,7 @@ class SocketIO:
             **kwargs,
         )
 
-    def call(self, event: str, *args: Any, **kwargs: Any) -> Any:
+    async def call(self, event: str, *args: Any, **kwargs: Any) -> Any:
         """Emit a SocketIO event and wait for the response.
 
         This method issues an emit with a callback and waits for the callback
@@ -494,9 +494,9 @@ class SocketIO:
         """
         namespace = kwargs.pop("namespace", "/")
         to = kwargs.pop("to", None) or kwargs.pop("room", None)
-        return self.server.call(event, *args, namespace=namespace, to=to, **kwargs)
+        return await self.server.call(event, *args, namespace=namespace, to=to, **kwargs)
 
-    def send(
+    async def send(
         self,
         data: Any,
         json: bool = False,
@@ -539,7 +539,7 @@ class SocketIO:
         """
         skip_sid = request.sid if not include_self else skip_sid
         if json:
-            self.emit(
+            await self.emit(
                 "json",
                 data,
                 namespace=namespace,
@@ -549,7 +549,7 @@ class SocketIO:
                 **kwargs,
             )
         else:
-            self.emit(
+            await self.emit(
                 "message",
                 data,
                 namespace=namespace,
@@ -559,7 +559,7 @@ class SocketIO:
                 **kwargs,
             )
 
-    def close_room(self, room: str, namespace: Optional[str] = None) -> None:
+    async def close_room(self, room: str, namespace: Optional[str] = None) -> None:
         """Close a room.
 
         This function removes any users that are in the given room and then
@@ -570,7 +570,7 @@ class SocketIO:
         :param namespace: The namespace under which the room exists. Defaults
                           to the global namespace.
         """
-        self.server.close_room(room, namespace)
+        await self.server.close_room(room, namespace)
 
     async def run(self, app: Quart, host: Optional[str] = None, port: Optional[int] = None, **kwargs: Any) -> None:
         """Run the SocketIO web server.
@@ -631,21 +631,16 @@ class SocketIO:
 
             await run_hypercorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Stop a running SocketIO web server.
 
         This method must be called from a HTTP or SocketIO handler function.
+
         """
-        if self.server.eio.async_mode == "threading":
-            func = request.environ.get("werkzeug.server.shutdown")
-            if func:
-                func()
-            else:
-                raise RuntimeError("Cannot stop unknown web server")
-        elif self.server.eio.async_mode == "eventlet":
+        if self.server.eio.async_mode == "hypercorn":
             raise SystemExit
-        elif self.server.eio.async_mode == "gevent":
-            self.asgi_server.stop()
+        elif self.server.eio.async_mode == "uvicorn":
+            await self.asgi_server.shutdown()
 
     def start_background_task(self, target: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Start a background task using the appropriate async model.
@@ -763,5 +758,5 @@ class SocketIO:
                 # when Flask is managing the user session, it needs to save it
                 if not hasattr(session_obj, "modified") or session_obj.modified:
                     resp = app.response_class()
-                    app.session_interface.save_session(app, session_obj, resp)
+                    await app.session_interface.save_session(app, session_obj, resp)
             return ret
