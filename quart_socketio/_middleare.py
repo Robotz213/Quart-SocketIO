@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Callable
 
 from quart import Quart
-from socketio import ASGIApp, AsyncServer, WSGIApp
+from socketio import ASGIApp, AsyncServer
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -26,12 +26,8 @@ class QuartSocketIOMiddleware(ASGIApp):
         scope: Scope,
         receive: Callable,
         send: Callable,
-        *args,
-        **kwargs,
     ) -> None:  # noqa: D102
         # Keep the `or` instead of `in {'http' …}` to allow type narrowing
-        args = args or ()
-        kwargs = kwargs or {}
         host: str | None = None
         if scope["type"] == "http" or scope["type"] == "websocket":
             scope = deepcopy(scope)

@@ -6,9 +6,10 @@ from typing import Any, AnyStr, Callable, Dict, List, Optional, TypeVar, Union
 
 import quart
 import socketio
-from quart import Quart, has_request_context, request, session
+from quart import Quart, Websocket, has_request_context, session, websocket
 from quart import json as quart_json
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
+from werkzeug.datastructures.headers import Headers
 
 from ._manager import _ManagedSession
 from ._middleare import QuartSocketIOMiddleware
@@ -251,7 +252,7 @@ class SocketIO:
         """
         namespace = namespace or "/"
 
-        async def decorator(handler: TFunction) -> TFunction:
+        def decorator(handler: TFunction) -> TFunction:
             @wraps(handler)
             async def _handler(sid: str, *args: str | int | bool) -> AnyStr | int | bool:
                 nonlocal namespace
@@ -266,8 +267,6 @@ class SocketIO:
                     sid = args[0]
                     args = [real_msg] + list(args[1:])
                 return await self._handle_event(handler, message, real_ns, sid, *args)
-
-            print("ok")
 
             if self.server:
                 self.server.on(message, _handler, namespace=namespace)
@@ -439,7 +438,7 @@ class SocketIO:
         include_self = kwargs.pop("include_self", True)
         skip_sid = kwargs.pop("skip_sid", None)
         if not include_self and not skip_sid:
-            skip_sid = request.sid
+            skip_sid = websocket.sid
         callback = kwargs.pop("callback", None)
         if callback:
             # wrap the callback so that it sets app app and request contexts
@@ -447,8 +446,8 @@ class SocketIO:
             original_callback = callback
             original_namespace = namespace
             if has_request_context():
-                sid = getattr(request, "sid", None)
-                original_namespace = getattr(request, "namespace", None)
+                sid = getattr(websocket, "sid", None)
+                original_namespace = getattr(websocket, "namespace", None)
 
             def _callback_wrapper(*args: str | int | bool) -> object:
                 return self._handle_event(original_callback, None, original_namespace, sid, *args)
@@ -457,7 +456,7 @@ class SocketIO:
                 # the callback wrapper above will install a request context
                 # before invoking the original callback
                 # we only use it if the emit was issued from a Socket.IO
-                # populated request context (i.e. request.sid is defined)
+                # populated request context (i.e. websocket.sid is defined)
                 callback = _callback_wrapper
         await self.server.emit(
             event,
@@ -544,7 +543,7 @@ class SocketIO:
                          those provided by the client. Callback functions can
                          only be used when addressing an individual client.
         """
-        skip_sid = request.sid if not include_self else skip_sid
+        skip_sid = websocket.sid if not include_self else skip_sid
         if json:
             await self.emit(
                 "json",
@@ -731,20 +730,36 @@ class SocketIO:
         if not environ:
             # we don't have record of this client, ignore this event
             return "", 400
-        app: Quart = environ["quart.app"]
-        async with app.request_context(environ):
+        app: Quart = self.sockio_mw.quart_app
+        req = Websocket(
+            path=environ["PATH_INFO"],
+            query_string=environ["asgi.scope"]["query_string"],
+            scheme=environ["asgi.url_scheme"],
+            headers=Headers(environ["asgi.scope"]["headers"]),
+            root_path=environ["asgi.scope"].get("root_path", ""),
+            http_version=environ["SERVER_PROTOCOL"],
+            receive=environ["asgi.receive"],
+            send=environ["asgi.send"],
+            subprotocols=environ["asgi.scope"].get("subprotocols", []),
+            accept=environ["asgi.scope"].get("accept"),
+            close=environ["asgi.scope"].get("close"),
+            # method=environ["REQUEST_METHOD"],
+            scope=environ["asgi.scope"],
+        )
+
+        async with app.websocket_context(req):
             if self.manage_session:
                 # manage a separate session for this client's Socket.IO events
                 # created as a copy of the regular user session
                 if "saved_session" not in environ:
                     environ["saved_session"] = _ManagedSession(session)
                 session_obj = environ["saved_session"]
-                if hasattr(quart, "globals") and hasattr(quart.globals, "request_ctx"):
+                if hasattr(quart, "globals") and hasattr(quart.globals, "websocket_ctx"):
                     # update session for Flask >= 2.2
-                    ctx = quart.globals.request_ctx._get_current_object()  # noqa: SLF001
+                    ctx = quart.globals.websocket_ctx._get_current_object()  # noqa: SLF001
                 else:  # pragma: no cover
                     # update session for Flask < 2.2
-                    ctx = quart._request_ctx_stack.top  # noqa: SLF001
+                    ctx = quart._websocket_ctx_stack.top  # noqa: SLF001
                 ctx.session = session_obj
             else:
                 # let Flask handle the user session
@@ -753,9 +768,9 @@ class SocketIO:
                 # for server-side sessions, this allows HTTP and Socket.IO to
                 # share the session, with both having read/write access to it
                 session_obj = session._get_current_object()  # noqa: SLF001
-            request.sid = sid
-            request.namespace = namespace
-            request.event = {"message": message, "args": args}
+            websocket.sid = sid
+            websocket.namespace = namespace
+            websocket.event = {"message": message, "args": args}
             try:
                 if message == "connect":
                     auth = args[1] if len(args) > 1 else None
@@ -775,5 +790,5 @@ class SocketIO:
                 # when Flask is managing the user session, it needs to save it
                 if not hasattr(session_obj, "modified") or session_obj.modified:
                     resp = app.response_class()
-                    await app.session_interface.save_session(app, session_obj, resp)
+                    app.session_interface.save_session(app, session_obj, resp)
             return ret
