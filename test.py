@@ -27,7 +27,10 @@ async def on_disconnect():  # noqa: ANN201, D102, D103
 @io.on("test", namespace="/")  # noqa: ANN201, D102, D103
 async def on_test(data):  # noqa: ANN001, ANN201, D102, D103, N805
     print("Test event received:", data)  # noqa: T201
+
     await io.emit("response", {"data": "Test event received"}, namespace="/")
+
+    return websocket.base_url
 
 
 async def main() -> None:
