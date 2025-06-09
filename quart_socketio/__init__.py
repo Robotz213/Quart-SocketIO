@@ -1,6 +1,5 @@
 from __future__ import annotations  # noqa: D104
 
-import os
 import traceback
 from functools import wraps
 from typing import Any, AnyStr, Callable, Dict, List, Optional, TypeVar, Union
@@ -140,12 +139,15 @@ class SocketIO:
         self.server_options: dict[str, Any] = {}
         self.asgi_server = None
         self.handlers: list[Any] = []
-        self.namespace_handlers: list[Any] = []
+        self.namespace_handlers: list[Any] = kwargs.get("namespace_handlers", [])
         self.exception_handlers: dict[str, Callable[..., Any]] = {}
         self.default_exception_handler: Optional[Callable[..., Any]] = None
         self.manage_session: bool = True
-        self.async_mode: str = "asgi"
-        self.launch_mode: str = "uvicorn"  # default to uvicorn, can be changed by the user
+        self.async_mode: str = kwargs.pop("async_mode", "asgi")
+        self.launch_mode: str = kwargs.pop("launch_mode", "uvicorn")  # default to uvicorn, can be changed by the user
+        self.cors_allowed_origins: Optional[Union[str, List[str], Callable[[], bool]]] = kwargs.pop(
+            "cors_allowed_origins", "*"
+        )
         # We can call init_app when:
         # - we were given the Flask app instance (standard initialization)
         # - we were not given the app, but we were given a message_queue
@@ -157,7 +159,7 @@ class SocketIO:
         else:
             self.server_options.update(kwargs)
 
-    def init_app(self, app: Quart, **kwargs: Union[str, bool, float, dict, None]) -> None:
+    async def init_app(self, app: Quart, **kwargs: Union[str, bool, float, dict, None]) -> None:
         """
         Initialize the SocketIO extension for the given Quart application.
 
@@ -208,7 +210,10 @@ class SocketIO:
         resource = self.server_options.pop("path", None) or self.server_options.pop("resource", None) or "socket.io"
         if resource.startswith("/"):
             resource = resource[1:]
+
         self.server_options["async_mode"] = self.async_mode
+        self.server_options["cors_allowed_origins"] = self.cors_allowed_origins
+
         self.server = socketio.AsyncServer(**self.server_options)
         self.async_mode = self.server.async_mode
         for handler in self.handlers:
@@ -246,9 +251,9 @@ class SocketIO:
         """
         namespace = namespace or "/"
 
-        def decorator(handler: TFunction) -> TFunction:
+        async def decorator(handler: TFunction) -> TFunction:
             @wraps(handler)
-            def _handler(sid: str, *args: str | int | bool) -> AnyStr | int | bool:
+            async def _handler(sid: str, *args: str | int | bool) -> AnyStr | int | bool:
                 nonlocal namespace
                 real_ns = namespace
                 if namespace == "*":
@@ -260,7 +265,9 @@ class SocketIO:
                     real_msg = sid
                     sid = args[0]
                     args = [real_msg] + list(args[1:])
-                return self._handle_event(handler, message, real_ns, sid, *args)
+                return await self._handle_event(handler, message, real_ns, sid, *args)
+
+            print("ok")
 
             if self.server:
                 self.server.on(message, _handler, namespace=namespace)
@@ -712,7 +719,13 @@ class SocketIO:
         )
 
     async def _handle_event(
-        self, handler: Callable[..., Any], message: Any, namespace: str, sid: str, *args: Any
+        self,
+        handler: Callable[..., Any],
+        message: Any,
+        namespace: str,
+        sid: str = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> Any:
         environ = self.server.get_environ(sid, namespace=namespace)
         if not environ:

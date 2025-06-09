@@ -13,7 +13,7 @@ class Namespace(BaseNamespace):
         super().__init__(namespace)
         self.socketio = None
 
-    def _set_socketio(self, socketio: SocketIO) -> None:
+    def _set_server(self, socketio: SocketIO) -> None:
         self.socketio = socketio
 
     async def trigger_event(self, event: str, *args: AnyStr | int | bool) -> Any:

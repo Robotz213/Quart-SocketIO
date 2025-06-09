@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Callable
 
 from quart import Quart
-from socketio import ASGIApp, AsyncServer
+from socketio import ASGIApp, AsyncServer, WSGIApp
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -21,8 +21,17 @@ class QuartSocketIOMiddleware(ASGIApp):
         self.trusted_hops = quart_app.config.get("SOCKETIO_TRUSTED_HOPS", 1)
         super().__init__(socketio_app, quart_app.asgi_app, socketio_path=socketio_path)
 
-    async def __call__(self, scope: Scope, receive: Callable, send: Callable) -> None:  # noqa: D102
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Callable,
+        send: Callable,
+        *args,
+        **kwargs,
+    ) -> None:  # noqa: D102
         # Keep the `or` instead of `in {'http' …}` to allow type narrowing
+        args = args or ()
+        kwargs = kwargs or {}
         host: str | None = None
         if scope["type"] == "http" or scope["type"] == "websocket":
             scope = deepcopy(scope)
