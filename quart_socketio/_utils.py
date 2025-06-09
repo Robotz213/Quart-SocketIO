@@ -2,8 +2,10 @@ from typing import Any, Optional
 
 from quart import current_app, request
 
+from quart_socketio import SocketIO
 
-def emit(event: str, *args: Any, **kwargs: Any) -> None:
+
+async def emit(event: str, *args: Any, **kwargs: Any) -> None:
     """Emit a SocketIO event.
 
     This function emits a SocketIO event to one or more connected clients. A
@@ -58,8 +60,8 @@ def emit(event: str, *args: Any, **kwargs: Any) -> None:
     skip_sid = kwargs.get("skip_sid")
     ignore_queue = kwargs.get("ignore_queue", False)
 
-    socketio = current_app.extensions["socketio"]
-    return socketio.emit(
+    socketio: SocketIO = current_app.extensions["socketio"]
+    return await socketio.emit(
         event,
         *args,
         namespace=namespace,
@@ -71,7 +73,7 @@ def emit(event: str, *args: Any, **kwargs: Any) -> None:
     )
 
 
-def call(event: str, *args: Any, **kwargs: Any) -> Any:
+async def call(event: str, *args: Any, **kwargs: Any) -> Any:
     """Emit a SocketIO event and wait for the response.
 
     This function issues an emit with a callback and waits for the callback to
@@ -112,8 +114,8 @@ def call(event: str, *args: Any, **kwargs: Any) -> Any:
     timeout = kwargs.get("timeout", 60)
     ignore_queue = kwargs.get("ignore_queue", False)
 
-    socketio = current_app.extensions["socketio"]
-    return socketio.call(
+    socketio: SocketIO = current_app.extensions["socketio"]
+    return await socketio.call(
         event,
         *args,
         namespace=namespace,
@@ -123,7 +125,7 @@ def call(event: str, *args: Any, **kwargs: Any) -> Any:
     )
 
 
-def send(message: Any, **kwargs: Any) -> None:
+async def send(message: Any, **kwargs: Any) -> None:
     """Send a SocketIO message.
 
     This function sends a simple SocketIO message to one or more connected
@@ -176,8 +178,8 @@ def send(message: Any, **kwargs: Any) -> None:
     skip_sid = kwargs.get("skip_sid")
     ignore_queue = kwargs.get("ignore_queue", False)
 
-    socketio = current_app.extensions["socketio"]
-    return socketio.send(
+    socketio: SocketIO = current_app.extensions["socketio"]
+    return await socketio.send(
         message,
         json=json,
         namespace=namespace,
@@ -189,7 +191,7 @@ def send(message: Any, **kwargs: Any) -> None:
     )
 
 
-def join_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
+async def join_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
     """Join a room.
 
     This function puts the user in a room, under the current namespace. The
@@ -209,13 +211,13 @@ def join_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = N
     :param namespace: The namespace for the room. If not provided, the
                       namespace is obtained from the request context.
     """
-    socketio = current_app.extensions["socketio"]
+    socketio: SocketIO = current_app.extensions["socketio"]
     sid = sid or request.sid
     namespace = namespace or request.namespace
-    socketio.server.enter_room(sid, room, namespace=namespace)
+    await socketio.server.enter_room(sid, room, namespace=namespace)
 
 
-def leave_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
+async def leave_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
     """Leave a room.
 
     This function removes the user from a room, under the current namespace.
@@ -234,13 +236,13 @@ def leave_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = 
     :param namespace: The namespace for the room. If not provided, the
                       namespace is obtained from the request context.
     """
-    socketio = current_app.extensions["socketio"]
+    socketio: SocketIO = current_app.extensions["socketio"]
     sid = sid or request.sid
     namespace = namespace or request.namespace
-    socketio.server.leave_room(sid, room, namespace=namespace)
+    await socketio.server.leave_room(sid, room, namespace=namespace)
 
 
-def close_room(room: str, namespace: Optional[str] = None) -> None:
+async def close_room(room: str, namespace: Optional[str] = None) -> None:
     """Close a room.
 
     This function removes any users that are in the given room and then deletes
@@ -250,12 +252,12 @@ def close_room(room: str, namespace: Optional[str] = None) -> None:
     :param namespace: The namespace for the room. If not provided, the
                       namespace is obtained from the request context.
     """
-    socketio = current_app.extensions["socketio"]
+    socketio: SocketIO = current_app.extensions["socketio"]
     namespace = namespace or request.namespace
-    socketio.server.close_room(room, namespace=namespace)
+    await socketio.server.close_room(room, namespace=namespace)
 
 
-def rooms(sid: Optional[str] = None, namespace: Optional[str] = None) -> list[str]:
+async def rooms(sid: Optional[str] = None, namespace: Optional[str] = None) -> list[str]:
     """Return a list of the rooms the client is in.
 
     This function returns all the rooms the client has entered, including its
@@ -266,13 +268,13 @@ def rooms(sid: Optional[str] = None, namespace: Optional[str] = None) -> list[st
     :param namespace: The namespace for the room. If not provided, the
                       namespace is obtained from the request context.
     """
-    socketio = current_app.extensions["socketio"]
+    socketio: SocketIO = current_app.extensions["socketio"]
     sid = sid or request.sid
     namespace = namespace or request.namespace
     return socketio.server.rooms(sid, namespace=namespace)
 
 
-def disconnect(sid: Optional[str] = None, namespace: Optional[str] = None, silent: bool = False) -> Any:
+async def disconnect(sid: Optional[str] = None, namespace: Optional[str] = None, silent: bool = False) -> Any:
     """Disconnect the client.
 
     This function terminates the connection with the client. As a result of
@@ -291,7 +293,7 @@ def disconnect(sid: Optional[str] = None, namespace: Optional[str] = None, silen
                       namespace is obtained from the request context.
     :param silent: this option is deprecated.
     """
-    socketio = current_app.extensions["socketio"]
+    socketio: SocketIO = current_app.extensions["socketio"]
     sid = sid or request.sid
     namespace = namespace or request.namespace
-    return socketio.server.disconnect(sid, namespace=namespace)
+    return await socketio.server.disconnect(sid, namespace=namespace)
