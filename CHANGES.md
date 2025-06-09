@@ -109,7 +109,7 @@
 
 **Release 5.0.1** - 2020-12-19
 
-- Fix handling of  argument [#1441](https://github.com/miguelgrinberg/flask-socketio/issues/1441) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/4ec274831551a3141a5838d9fd4c5e983f637a3a))
+- Fix handling of argument [#1441](https://github.com/miguelgrinberg/flask-socketio/issues/1441) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/4ec274831551a3141a5838d9fd4c5e983f637a3a))
 - Add python-engineio to version compatibility table ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/2934b469da80c1f5df9f560f06cf11e61dd2f1bd))
 - Test client: pass packets through an encode/decode cycle [#1427](https://github.com/miguelgrinberg/flask-socketio/issues/1427) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/ffe66fee0e72737aa974337a3ceaab4553ab3325))
 
@@ -119,7 +119,7 @@
   - Also see [python-socketio change log](https://github.com/miguelgrinberg/python-socketio/blob/master/CHANGES.md)
   - Also see [python-engineio change log](https://github.com/miguelgrinberg/python-engineio/blob/master/CHANGES.md)
 - add @socketio.event convenience decorator ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/62717a852983bbf5d89d9b8f898282712c9bbf24))
-- Rename `room`  argument to `to` ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/4c69c9a807a94120c4a07274e29ef9b9a41bfb86))
+- Rename `room` argument to `to` ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/4c69c9a807a94120c4a07274e29ef9b9a41bfb86))
 - Documentation updates ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/e864441e7ac7263d77e9a2e18863ebc22dcbf6ec)) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/c91244a30e77104c6df827b55f9dfad8ae9c7788))
 
 **Release 4.3.2** - 2020-11-30
@@ -266,7 +266,7 @@
 
 - some more unit tests ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/50ab42a3705bb03182735c70f83d81020b2037e1))
 - Support custom headers and query string in test client [#520](https://github.com/miguelgrinberg/flask-socketio/issues/520) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/ecf5925827a916ef52361856290f16087c4e36e9))
-- added **kwarg to  pywsgi.WSGIServer when import WebSocketHandler failed [#518](https://github.com/miguelgrinberg/flask-socketio/issues/518) there is any reason to not pass **kwarg pywsgi.WSGIServer in the case WebSocketHandler fail to import? ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/8a09692873ed6dea35599be7f1f607e1aa58170f)) (thanks **simus81**!)
+- added **kwarg to pywsgi.WSGIServer when import WebSocketHandler failed [#518](https://github.com/miguelgrinberg/flask-socketio/issues/518) there is any reason to not pass **kwarg pywsgi.WSGIServer in the case WebSocketHandler fail to import? ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/8a09692873ed6dea35599be7f1f607e1aa58170f)) (thanks **simus81**!)
 
 **Release 2.9.1** - 2017-07-16
 
@@ -340,7 +340,7 @@
 - Add on_event(), the non-decorator version of on() ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/39f8795e8118a01596f74e3e34df8c9ddd93645b)) (thanks **Stefan Otte**!)
 - improved callback handling on test client ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/6077d7a22a9460b58464e6ccd8e0d185310da6cc))
 - add explicit eventlet.wsgi import [#309](https://github.com/miguelgrinberg/flask-socketio/issues/309) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/d604a7e854c31b20db0e01ed3c8baebd90642dd9))
-- fix document typos: messaque -> message [#304](https://github.com/miguelgrinberg/flask-socketio/issues/304) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/4469cce5b77605effc76386a2811fd3524dbb262)) (thanks **朱✖️: (ง •_•)ง木犀**!)
+- fix document typos: messaque -> message [#304](https://github.com/miguelgrinberg/flask-socketio/issues/304) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/4469cce5b77605effc76386a2811fd3524dbb262)) (thanks **朱 ✖️: (ง •\_•)ง 木犀**!)
 
 **Release 2.6.2** - 2016-08-09
 
@@ -381,7 +381,7 @@
 
 **Release 2.1** - 2016-02-08
 
-- Added reference of `_SocketIOMiddleware` instance to the SocketIO class ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/8c9c853eac93daecc41be0b0ad47611c4ca4f509)) (thanks **Grant**!)
+- Added reference of `QuartSocketIOMiddleware` instance to the SocketIO class ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/8c9c853eac93daecc41be0b0ad47611c4ca4f509)) (thanks **Grant**!)
 - request context should not be needed when calling emit() with namespace [#213](https://github.com/miguelgrinberg/flask-socketio/issues/213) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/cfb7958e20466a6ed7fa44607585b5730a4c1e37)) (thanks **Tamas Nepusz**!)
 - fixed a missed word in deployment docs [#210](https://github.com/miguelgrinberg/flask-socketio/issues/210) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/d528dc21a4e56106501af895e401a2542059a75c)) (thanks **George Lejnine**!)
 - Documentation improvements on handling multiple arguments with tuples ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/000623e396ba7854ba58794735d6c5339f3ffdb4))
@@ -397,7 +397,7 @@
 - fixed ssl configuration issue fixed [#188](https://github.com/miguelgrinberg/flask-socketio/issues/188) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/9cd254c5fdc45a2aa8f03ec372eddb2f74e8a7bb)) (thanks **muatik**!)
 - message queue documentation ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/20f68f2298a6abb304f75b5f20b87af8180c5998))
 - escaping of user provided input [#185](https://github.com/miguelgrinberg/flask-socketio/issues/185) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/68efeacd830ce07f8456df0478ad9a20e5399ab5))
-- typo in __init__.py [#182](https://github.com/miguelgrinberg/flask-socketio/issues/182) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/9831e77292ca44220a59efde56966fd909d839e5)) (thanks **Luke Yeager**!)
+- typo in **init**.py [#182](https://github.com/miguelgrinberg/flask-socketio/issues/182) ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/9831e77292ca44220a59efde56966fd909d839e5)) (thanks **Luke Yeager**!)
 - Updated dependencies ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/4d50b84c01f7710e1b76e216c7eb85f70737f041))
 - Integrate message queue backend ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/51b28409a58c1a57cd4f20be758e80d31e5451d9))
 - Update index.rst Fix missprint ([commit](https://github.com/miguelgrinberg/flask-socketio/commit/a749af27d9cb0921e713431be75dffefed07d93f)) (thanks **Dmitry Zhuravlev-Nevsky**!)

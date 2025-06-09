@@ -12,7 +12,7 @@ from quart import json as quart_json
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 
 from ._manager import _ManagedSession
-from ._middleare import _SocketIOMiddleware
+from ._middleare import QuartSocketIOMiddleware
 from ._namespace import Namespace
 from ._utils import (
     call,
@@ -126,7 +126,7 @@ class SocketIO:
 
     reason: Any = socketio.AsyncServer.reason
 
-    async def __init__(self, app: Optional[Quart] = None, **kwargs: Union[str, bool, float, dict, None]) -> None:
+    def __init__(self, app: Optional[Quart] = None, **kwargs: Union[str, bool, float, dict, None]) -> None:
         """
         Initialize the SocketIO server for async WebSocket communication.
 
@@ -144,6 +144,8 @@ class SocketIO:
         self.exception_handlers: dict[str, Callable[..., Any]] = {}
         self.default_exception_handler: Optional[Callable[..., Any]] = None
         self.manage_session: bool = True
+        self.async_mode: str = "asgi"
+        self.launch_mode: str = "uvicorn"  # default to uvicorn, can be changed by the user
         # We can call init_app when:
         # - we were given the Flask app instance (standard initialization)
         # - we were not given the app, but we were given a message_queue
@@ -206,9 +208,7 @@ class SocketIO:
         resource = self.server_options.pop("path", None) or self.server_options.pop("resource", None) or "socket.io"
         if resource.startswith("/"):
             resource = resource[1:]
-        if os.environ.get("FLASK_RUN_FROM_CLI"):
-            if self.server_options.get("async_mode") is None:
-                self.server_options["async_mode"] = "threading"
+        self.server_options["async_mode"] = self.async_mode
         self.server = socketio.AsyncServer(**self.server_options)
         self.async_mode = self.server.async_mode
         for handler in self.handlers:
@@ -220,7 +220,7 @@ class SocketIO:
             # here we attach the SocketIO middleware to the SocketIO object so
             # it can be referenced later if debug middleware needs to be
             # inserted
-            self.sockio_mw = _SocketIOMiddleware(self.server, app, socketio_path=resource)
+            self.sockio_mw = QuartSocketIOMiddleware(self.server, app, socketio_path=resource)
             app.asgi_app = self.sockio_mw
 
     def on(
@@ -621,26 +621,30 @@ class SocketIO:
         if extra_files:
             reloader_options["extra_files"] = extra_files
 
-        if kwargs.get("async_mode") == "uvicorn":
+        async_mode = kwargs.get("launch_mode", self.launch_mode)
+        if async_mode not in ["uvicorn", "hypercorn"]:
+            raise ValueError(f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn' and 'hypercorn'.")
+
+        if async_mode == "uvicorn":
             from quart_socketio._uvicorn import run_uvicorn
 
-            self.asgi_server = await run_uvicorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
+            await run_uvicorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
 
-        elif kwargs.get("async_mode") == "hypercorn":
+        elif async_mode == "hypercorn":
             from quart_socketio._hypercorn import run_hypercorn
 
             await run_hypercorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
 
-    async def stop(self) -> None:
-        """Stop a running SocketIO web server.
+    # async def stop(self) -> None:
+    #     """Stop a running SocketIO web server.
 
-        This method must be called from a HTTP or SocketIO handler function.
+    #     This method must be called from a HTTP or SocketIO handler function.
 
-        """
-        if self.server.eio.async_mode == "hypercorn":
-            raise SystemExit
-        elif self.server.eio.async_mode == "uvicorn":
-            await self.asgi_server.shutdown()
+    #     """
+    #     if self.server.eio.async_mode == "hypercorn":
+    #         raise SystemExit
+    #     elif self.server.eio.async_mode == "uvicorn":
+    #         await self.asgi_server.shutdown()
 
     def start_background_task(self, target: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Start a background task using the appropriate async model.

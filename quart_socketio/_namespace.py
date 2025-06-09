@@ -1,8 +1,11 @@
-from typing import Any, AnyStr
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, AnyStr
 
 from socketio import Namespace as BaseNamespace
 
-from quart_socketio import SocketIO
+if TYPE_CHECKING:
+    from . import SocketIO
 
 
 class Namespace(BaseNamespace):
