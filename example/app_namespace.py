@@ -1,7 +1,8 @@
 from threading import Lock
-from flask import Flask, render_template, session, request
-from flask_socketio import SocketIO, Namespace, emit, join_room, leave_room, \
-    close_room, rooms, disconnect
+
+from quart import Flask, render_template, request, session
+
+from flask_socketio import Namespace, SocketIO, close_room, disconnect, emit, join_room, leave_room, rooms
 
 # Set this variable to "threading", "eventlet" or "gevent" to test the
 # different async modes, or leave it set to None for the application to choose
@@ -9,7 +10,7 @@ from flask_socketio import SocketIO, Namespace, emit, join_room, leave_room, \
 async_mode = None
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
+app.config["SECRET_KEY"] = "secret!"
 socketio = SocketIO(app, async_mode=async_mode)
 thread = None
 thread_lock = Lock()
@@ -21,77 +22,67 @@ def background_thread():
     while True:
         socketio.sleep(10)
         count += 1
-        socketio.emit('my_response',
-                      {'data': 'Server generated event', 'count': count},
-                      namespace='/test')
+        socketio.emit("my_response", {"data": "Server generated event", "count": count}, namespace="/test")
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html', async_mode=socketio.async_mode)
+    return render_template("index.html", async_mode=socketio.async_mode)
 
 
 class MyNamespace(Namespace):
     def on_my_event(self, message):
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response',
-             {'data': message['data'], 'count': session['receive_count']})
+        session["receive_count"] = session.get("receive_count", 0) + 1
+        emit("my_response", {"data": message["data"], "count": session["receive_count"]})
 
     def on_my_broadcast_event(self, message):
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response',
-             {'data': message['data'], 'count': session['receive_count']},
-             broadcast=True)
+        session["receive_count"] = session.get("receive_count", 0) + 1
+        emit("my_response", {"data": message["data"], "count": session["receive_count"]}, broadcast=True)
 
     def on_join(self, message):
-        join_room(message['room'])
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response',
-             {'data': 'In rooms: ' + ', '.join(rooms()),
-              'count': session['receive_count']})
+        join_room(message["room"])
+        session["receive_count"] = session.get("receive_count", 0) + 1
+        emit("my_response", {"data": "In rooms: " + ", ".join(rooms()), "count": session["receive_count"]})
 
     def on_leave(self, message):
-        leave_room(message['room'])
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response',
-             {'data': 'In rooms: ' + ', '.join(rooms()),
-              'count': session['receive_count']})
+        leave_room(message["room"])
+        session["receive_count"] = session.get("receive_count", 0) + 1
+        emit("my_response", {"data": "In rooms: " + ", ".join(rooms()), "count": session["receive_count"]})
 
     def on_close_room(self, message):
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response', {'data': 'Room ' + message['room'] + ' is closing.',
-                             'count': session['receive_count']},
-             room=message['room'])
-        close_room(message['room'])
+        session["receive_count"] = session.get("receive_count", 0) + 1
+        emit(
+            "my_response",
+            {"data": "Room " + message["room"] + " is closing.", "count": session["receive_count"]},
+            room=message["room"],
+        )
+        close_room(message["room"])
 
     def on_my_room_event(self, message):
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response',
-             {'data': message['data'], 'count': session['receive_count']},
-             room=message['room'])
+        session["receive_count"] = session.get("receive_count", 0) + 1
+        emit("my_response", {"data": message["data"], "count": session["receive_count"]}, room=message["room"])
 
     def on_disconnect_request(self):
-        session['receive_count'] = session.get('receive_count', 0) + 1
-        emit('my_response',
-             {'data': 'Disconnected!', 'count': session['receive_count']})
+        session["receive_count"] = session.get("receive_count", 0) + 1
+        emit("my_response", {"data": "Disconnected!", "count": session["receive_count"]})
         disconnect()
 
     def on_my_ping(self):
-        emit('my_pong')
+        emit("my_pong")
 
     def on_connect(self):
         global thread
         with thread_lock:
             if thread is None:
                 thread = socketio.start_background_task(background_thread)
-        emit('my_response', {'data': 'Connected', 'count': 0})
+        emit("my_response", {"data": "Connected", "count": 0})
 
     def on_disconnect(self):
-        print('Client disconnected', request.sid)
+        print("Client disconnected", request.sid)
 
 
-socketio.on_namespace(MyNamespace('/'))
+socketio.on_namespace(MyNamespace("/"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     socketio.run(app)
