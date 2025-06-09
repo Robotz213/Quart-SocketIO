@@ -6,7 +6,7 @@ from typing import Any, AnyStr, Callable, Dict, List, Optional, TypeVar, Union
 
 import quart
 import socketio
-from quart import Quart, Websocket, has_request_context, session, websocket
+from quart import Quart, Request, has_request_context, request, session
 from quart import json as quart_json
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
@@ -438,7 +438,7 @@ class SocketIO:
         include_self = kwargs.pop("include_self", True)
         skip_sid = kwargs.pop("skip_sid", None)
         if not include_self and not skip_sid:
-            skip_sid = websocket.sid
+            skip_sid = request.sid
         callback = kwargs.pop("callback", None)
         if callback:
             # wrap the callback so that it sets app app and request contexts
@@ -446,8 +446,8 @@ class SocketIO:
             original_callback = callback
             original_namespace = namespace
             if has_request_context():
-                sid = getattr(websocket, "sid", None)
-                original_namespace = getattr(websocket, "namespace", None)
+                sid = getattr(request, "sid", None)
+                original_namespace = getattr(request, "namespace", None)
 
             def _callback_wrapper(*args: str | int | bool) -> object:
                 return self._handle_event(original_callback, None, original_namespace, sid, *args)
@@ -456,7 +456,7 @@ class SocketIO:
                 # the callback wrapper above will install a request context
                 # before invoking the original callback
                 # we only use it if the emit was issued from a Socket.IO
-                # populated request context (i.e. websocket.sid is defined)
+                # populated request context (i.e. request.sid is defined)
                 callback = _callback_wrapper
         await self.server.emit(
             event,
@@ -543,7 +543,7 @@ class SocketIO:
                          those provided by the client. Callback functions can
                          only be used when addressing an individual client.
         """
-        skip_sid = websocket.sid if not include_self else skip_sid
+        skip_sid = request.sid if not include_self else skip_sid
         if json:
             await self.emit(
                 "json",
@@ -717,6 +717,9 @@ class SocketIO:
             quart_test_client=quart_test_client,
         )
 
+    async def send_push_promise(self, data: str, headers: Headers) -> None:
+        """Empty."""
+
     async def _handle_event(
         self,
         handler: Callable[..., Any],
@@ -731,41 +734,53 @@ class SocketIO:
             # we don't have record of this client, ignore this event
             return "", 400
         app: Quart = self.sockio_mw.quart_app
-        req = Websocket(
+        # req = Websocket(
+        #     path=environ["PATH_INFO"],
+        #     query_string=environ["asgi.scope"]["query_string"],
+        #     scheme=environ["asgi.url_scheme"],
+        #     headers=Headers(environ["asgi.scope"]["headers"]),
+        #     root_path=environ["asgi.scope"].get("root_path", ""),
+        #     http_version=environ["SERVER_PROTOCOL"],
+        #     receive=environ["asgi.receive"],
+        #     send=environ["asgi.send"],
+        #     subprotocols=environ["asgi.scope"].get("subprotocols", []),
+        #     accept=environ["asgi.scope"].get("accept"),
+        #     close=environ["asgi.scope"].get("close"),
+        #     # method=environ["REQUEST_METHOD"],
+        #     scope=environ["asgi.scope"],
+        # )
+
+        req = Request(
+            method=environ["REQUEST_METHOD"],
+            scheme=environ["asgi.url_scheme"],
             path=environ["PATH_INFO"],
             query_string=environ["asgi.scope"]["query_string"],
-            scheme=environ["asgi.url_scheme"],
             headers=Headers(environ["asgi.scope"]["headers"]),
             root_path=environ["asgi.scope"].get("root_path", ""),
             http_version=environ["SERVER_PROTOCOL"],
-            receive=environ["asgi.receive"],
-            send=environ["asgi.send"],
-            subprotocols=environ["asgi.scope"].get("subprotocols", []),
-            accept=environ["asgi.scope"].get("accept"),
-            close=environ["asgi.scope"].get("close"),
-            # method=environ["REQUEST_METHOD"],
             scope=environ["asgi.scope"],
+            send_push_promise=self.send_push_promise,
         )
 
-        async with app.websocket_context(req):
+        async with app.request_context(req):
             if self.manage_session:
                 # manage a separate session for this client's Socket.IO events
                 # created as a copy of the regular user session
                 if "saved_session" not in environ:
                     environ["saved_session"] = _ManagedSession(session)
                 session_obj = environ["saved_session"]
-                if hasattr(quart, "globals") and hasattr(quart.globals, "websocket_ctx"):
+                if hasattr(quart, "globals") and hasattr(quart.globals, "request_ctx"):
                     # update session for Flask >= 2.2
-                    ctx = quart.globals.websocket_ctx._get_current_object()  # noqa: SLF001
+                    ctx = quart.globals.request_ctx._get_current_object()  # noqa: SLF001
                 else:  # pragma: no cover
                     # update session for Flask < 2.2
-                    ctx = quart._websocket_ctx_stack.top  # noqa: SLF001
+                    ctx = quart._request_ctx_stack.top  # noqa: SLF001
                 ctx.session = session_obj
             else:
                 session_obj = session._get_current_object()  # noqa: SLF001
-            websocket.sid = sid
-            websocket.namespace = namespace
-            websocket.event = {"message": message, "args": args}
+            request.sid = sid
+            request.namespace = namespace
+            request.event = {"message": message, "args": args}
             try:
                 if message == "connect":
                     auth = args[1] if len(args) > 1 else None
