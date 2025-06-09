@@ -8,7 +8,7 @@ from typing import Any, AnyStr, Callable, Dict, List, Optional, TypeVar, Union
 import quart
 import socketio
 from quart import Quart, has_request_context, request, session
-from quart import json as flask_json
+from quart import json as quart_json
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 
 from ._manager import _ManagedSession
@@ -83,7 +83,7 @@ class SocketIO:
     Example:
         ```python
         from quart import Quart
-        from flask_socketio import SocketIO
+        from quart_socketio import SocketIO
 
         app = Quart(__name__)
         socketio = SocketIO(app, async_mode="asgi")
@@ -162,7 +162,7 @@ class SocketIO:
                 queue = queue_class(url, channel=channel, write_only=write_only)
                 self.server_options["client_manager"] = queue
 
-        if "json" in self.server_options and self.server_options["json"] == flask_json:
+        if "json" in self.server_options and self.server_options["json"] == quart_json:
             # quart's json module is tricky to use because its output
             # changes when it is invoked inside or outside the app context
             # so here to prevent any ambiguities we replace it with wrappers
@@ -171,12 +171,12 @@ class SocketIO:
                 @staticmethod
                 def dumps(*args: str | int | bool, **kwargs: str | int | bool) -> str:
                     with app.app_context():
-                        return flask_json.dumps(*args, **kwargs)
+                        return quart_json.dumps(*args, **kwargs)
 
                 @staticmethod
                 def loads(*args: str | int | bool, **kwargs: str | int | bool) -> dict[str, AnyStr | int | bool]:
                     with app.app_context():
-                        return flask_json.loads(*args, **kwargs)
+                        return quart_json.loads(*args, **kwargs)
 
             self.server_options["json"] = FlaskSafeJSON
 
@@ -650,7 +650,7 @@ class SocketIO:
         query_string: Optional[str] = None,
         headers: Optional[dict[str, str]] = None,
         auth: Optional[dict[str, Any]] = None,
-        flask_test_client: Any = None,
+        quart_test_client: Any = None,
     ) -> SocketIOTestClient:
         """The Socket.IO test client is useful for testing a Flask-SocketIO server.
 
@@ -664,7 +664,7 @@ class SocketIO:
         :param query_string: A string with custom query string arguments.
         :param headers: A dictionary with custom HTTP headers.
         :param auth: Optional authentication data, given as a dictionary.
-        :param flask_test_client: The instance of the Flask test client
+        :param quart_test_client: The instance of the Flask test client
                                   currently in use. Passing the Flask test
                                   client is optional, but is necessary if you
                                   want the Flask user session and any other
@@ -678,7 +678,7 @@ class SocketIO:
             query_string=query_string,
             headers=headers,
             auth=auth,
-            flask_test_client=flask_test_client,
+            quart_test_client=quart_test_client,
         )
 
     async def _handle_event(

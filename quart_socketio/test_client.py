@@ -17,7 +17,7 @@ class SocketIOTestClient:
     :param query_string: A string with custom query string arguments.
     :param headers: A dictionary with custom HTTP headers.
     :param auth: Optional authentication data, given as a dictionary.
-    :param flask_test_client: The instance of the Flask test client
+    :param quart_test_client: The instance of the Flask test client
                               currently in use. Passing the Flask test
                               client is optional, but is necessary if you
                               want the Flask user session and any other
@@ -28,7 +28,7 @@ class SocketIOTestClient:
     clients = {}
 
     def __init__(
-        self, app, socketio, namespace=None, query_string=None, headers=None, auth=None, flask_test_client=None
+        self, app, socketio, namespace=None, query_string=None, headers=None, auth=None, quart_test_client=None
     ):
         def _mock_send_packet(eio_sid, pkt):
             # make sure the packet can be encoded and decoded
@@ -69,7 +69,7 @@ class SocketIOTestClient:
                     _current_packet = pkt
 
         self.app = app
-        self.flask_test_client = flask_test_client
+        self.quart_test_client = quart_test_client
         self.eio_sid = uuid.uuid4().hex
         self.clients[self.eio_sid] = self
         self.callback_counter = 0
@@ -120,14 +120,14 @@ class SocketIOTestClient:
             url += query_string
         environ = EnvironBuilder(url, headers=headers).get_environ()
         environ["quart.app"] = self.app
-        if self.flask_test_client:
+        if self.quart_test_client:
             # inject cookies from Flask
-            if hasattr(self.flask_test_client, "_add_cookies_to_asgi"):
+            if hasattr(self.quart_test_client, "_add_cookies_to_asgi"):
                 # quart >= 2.3
-                self.flask_test_client._add_cookies_to_asgi(environ)
+                self.quart_test_client._add_cookies_to_asgi(environ)
             else:  # pragma: no cover
                 # quart < 2.3
-                self.flask_test_client.cookie_jar.inject_asgi(environ)
+                self.quart_test_client.cookie_jar.inject_asgi(environ)
         self.socketio.server._handle_eio_connect(self.eio_sid, environ)
         pkt = packet.Packet(packet.CONNECT, auth, namespace=namespace)
         self.socketio.server._handle_eio_message(self.eio_sid, pkt.encode())

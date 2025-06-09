@@ -3,9 +3,8 @@ import time
 import unittest
 
 from quart import Flask, request, session
-from quart import json as flask_json
-
-from flask_socketio import ConnectionRefusedError, Namespace, SocketIO, disconnect, emit, join_room, leave_room, send
+from quart import json as quart_json
+from quart_socketio import ConnectionRefusedError, Namespace, SocketIO, disconnect, emit, join_room, leave_room, send
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "secret"
@@ -524,9 +523,9 @@ class TestSocketIO(unittest.TestCase):
         self.assertEqual(len(client3.get_received()), 0)
 
     def test_managed_session(self):
-        flask_client = app.test_client()
-        flask_client.get("/session")
-        client = socketio.test_client(app, flask_test_client=flask_client, auth={"foo": "bar"})
+        quart_client = app.test_client()
+        quart_client.get("/session")
+        client = socketio.test_client(app, quart_test_client=quart_client, auth={"foo": "bar"})
         client.get_received()
         client.send("echo this message back")
         self.assertEqual(socketio.server.environ[client.eio_sid]["saved_session"], {"foo": "bar"})
@@ -537,9 +536,9 @@ class TestSocketIO(unittest.TestCase):
 
     def test_unmanaged_session(self):
         socketio.manage_session = False
-        flask_client = app.test_client()
-        flask_client.get("/session")
-        client = socketio.test_client(app, flask_test_client=flask_client, auth={"foo": "bar"})
+        quart_client = app.test_client()
+        quart_client.get("/session")
+        client = socketio.test_client(app, quart_test_client=quart_client, auth={"foo": "bar"})
         client.get_received()
         client.send("test session")
         client.send("test session")
@@ -749,7 +748,7 @@ class TestSocketIO(unittest.TestCase):
 
     def test_delayed_init(self):
         app = Flask(__name__)
-        socketio = SocketIO(allow_upgrades=False, json=flask_json)
+        socketio = SocketIO(allow_upgrades=False, json=quart_json)
 
         @socketio.on("connect")
         def on_connect():

@@ -1,11 +1,13 @@
-from flask_login import LoginManager, UserMixin, current_user, login_user, logout_user
-from flask_session import Session
-from quart import Flask, jsonify, render_template, request, session
+import uuid  # noqa: D100
 
-from flask_socketio import SocketIO, emit
+from quart import Flask, jsonify, render_template, request, session
+from quart_login import LoginManager, UserMixin, current_user, login_user, logout_user
+from quart_session import Session
+
+from quart_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "top-secret!"
+app.config["SECRET_KEY"] = uuid.uuid4().hex
 app.config["SESSION_TYPE"] = "filesystem"
 login = LoginManager(app)
 Session(app)

@@ -11,7 +11,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 requires-python = ">=3.12"
-dependencies = ["quart", "python-socketio >= 5.12.0"]
+dependencies = ["quart", "python-socketio >= 5.12.0", "quart-login @ git+https://github.com/0000matteo0000/quart-login.git"]
 
 [project.readme]
 file = "README.md"
@@ -34,6 +34,10 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["src"]
 namespaces = false
+
+
+[tool.poetry.group.dev.dependencies]
+quart-session = ">=3.0.0,<4.0.0"
 
 [build-system]
 requires = ["setuptools>=61.2"]
