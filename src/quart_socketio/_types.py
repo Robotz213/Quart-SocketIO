@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import engineio
 import socketio
-
-if TYPE_CHECKING:
-    from quart_socketio.config.python_socketio import AsyncSocketIOConfig
-    from quart_socketio.config.quart_socketio import Config
 
 TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
 TFunction = TypeVar("TFunction", bound=Callable[..., Any])
@@ -23,7 +19,6 @@ TQueueClasses = Union[
 TQueueClass = TypeVar("TQueueClass", bound=TQueueClasses)
 
 TQueueClassMap = Dict[TTupleLiteral, TQueueClasses]
-TConf = Union[Config, AsyncSocketIOConfig]
 TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
 
 
