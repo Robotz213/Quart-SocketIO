@@ -8,7 +8,14 @@ Socket.IO integration for Quart applications.
 
 You can install this package using pip:
 
-    pip install quart-socketio
+    ```bash
+
+    pip install git+https://github.com/Robotz213/Quart-SocketIO.git
+
+    # If you are using Poetry, add the package to your project with:
+    poetry add git+https://github.com/Robotz213/Quart-SocketIO.git
+
+    ```
 
 ## Example
 
