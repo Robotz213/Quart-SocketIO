@@ -1,17 +1,25 @@
-from typing import Any, Callable, List, Literal, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import engineio
 import socketio
 
 from quart_socketio.config.python_socketio import AsyncSocketIOConfig
-from quart_socketio.config.quart_socketio import Configimport AsyncSocketIOConfig, Config
+from quart_socketio.config.quart_socketio import Config
 
 TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
 TFunction = TypeVar("TFunction", bound=Callable[..., Any])
 TCorsAllowOrigin = Optional[Union[str, List[str], Callable[[], bool]]]
-TTupleLiteral = Tuple[Literal["redis://", "rediss://", "kafka://", "zmq"]]
-TQueueClass = Union[socketio.AsyncRedisManager, socketio.KafkaManager, socketio.ZmqManager, socketio.KombuManager]
-TQueueClassMap = dict[TTupleLiteral, TQueueClass]
+TTupleLiteral = Tuple[str]
+TQueueClasses = Union[
+    Type[socketio.AsyncRedisManager],
+    Type[socketio.KafkaManager],
+    Type[socketio.ZmqManager],
+    Type[socketio.KombuManager],
+]
+
+TQueueClass = TypeVar("TQueueClass", bound=TQueueClasses)
+
+TQueueClassMap = Dict[TTupleLiteral, TQueueClasses]
 TConf = Union[Config, AsyncSocketIOConfig]
 TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
 

@@ -60,9 +60,12 @@ class Controller:
         self.config = config or kwargs.pop("config", Config(app=app, **kwargs))
         self.socket_config = socket_config or kwargs.pop("socket_config", AsyncSocketIOConfig(**kwargs))
 
+        if app is not None or "message_queue" in kwargs:
+            self.init_app(app=app, **kwargs)
+
     def init_app(
         self,
-        app: Quart = None,
+        app: Quart,
         config: Config = None,
         socket_config: AsyncSocketIOConfig = None,
         **kwargs: Union[str, bool, float, dict, None],
@@ -82,21 +85,7 @@ class Controller:
             if not isinstance(socket_config, AsyncSocketIOConfig):
                 raise TypeError("socket_config must be an instance of AsyncSocketIOConfig")
             self.server_options = socket_config or kwargs.pop("server_options", AsyncSocketIOConfig(**kwargs))
-
-        if app is not None:
-            if not hasattr(app, "extensions"):
-                app.extensions = {}  # pragma: no cover
-            app.extensions["socketio"] = self
-
         app = self.config.app or app
-        if not app:
-            raise ValueError("Quart application instance is required to initialize the server.")
-
-        if "client_manager" not in kwargs:
-            self.client_manager(app)
-
-        if self.server_options.json and self.server_options.json == quart_json:
-            self.json_setting(app)
 
         self.server = socketio.AsyncServer(**self.server_options)
         for handler in self.config.handlers:
@@ -108,8 +97,18 @@ class Controller:
             # here we attach the SocketIO middleware to the SocketIO object so
             # it can be referenced later if debug middleware needs to be
             # inserted
+            if not hasattr(app, "extensions"):
+                app.extensions = {}  # pragma: no cover
+
+            if "client_manager" not in kwargs:
+                self.client_manager(app)
+
+            if self.server_options.json and self.server_options.json == quart_json:
+                self.json_setting(app)
+
             self.sockio_mw = QuartSocketIOMiddleware(self.server, app, socketio_path=self.server_options.socketio_path)
             app.asgi_app = self.sockio_mw
+            app.extensions["socketio"] = self
 
     async def run(self, **kwargs: Union[str, bool, float, dict, None]) -> None:
         self.config.update(kwargs)
@@ -147,7 +146,7 @@ class Controller:
             await self.threading_mode()
 
     async def client_manager(self, app: Quart) -> None:
-        url: str = self.server_options.get("message_queue", None)
+        url = self.server_options.message_queue
         channel: str = self.server_options.pop("channel", "quart-socketio")
         write_only: bool = app is None
         if url:
@@ -163,7 +162,7 @@ class Controller:
                     break
 
             queue = queue_class(url, channel=channel, write_only=write_only)
-            self.server_options["client_manager"] = queue
+            self.server_options.client_manager = queue
 
     async def json_setting(self, app: Quart) -> None:
         """

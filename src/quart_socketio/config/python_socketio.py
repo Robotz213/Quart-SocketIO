@@ -2,9 +2,7 @@ import logging  # noqa: D100
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
-import socketio
-
-from quart_socketio._types import CustomJsonClass
+from quart_socketio._types import CustomJsonClass, TQueueClasses
 
 
 @dataclass
@@ -97,7 +95,7 @@ class AsyncSocketIOConfig:
 
     """
 
-    client_manager: Optional[socketio.AsyncClientManager] = None
+    client_manager: TQueueClasses = None
     logger: bool = False
     socketio_path: str = "/socket.io"
     engineio_path: str = "/engine.io"
@@ -118,6 +116,8 @@ class AsyncSocketIOConfig:
     monitor_clients: bool = True
     transports: List[str] = ["polling", "websocket"]
     engineio_logger: Union[bool, logging.Logger] = False
+    message_queue: Optional[str] = None
+    channel: str = "quart-socketio"
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a dictionary with the configuration parameters."""
