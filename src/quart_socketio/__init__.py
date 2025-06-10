@@ -6,8 +6,9 @@ from typing import Any, AnyStr, Callable, Dict, List, Optional, Union
 
 import quart
 import socketio
-from quart import Quart, Request, has_request_context, request, session
+from quart import Quart, Websocket, has_request_context, session
 from quart import json as quart_json
+from quart import websocket as request
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
 
@@ -147,12 +148,18 @@ class SocketIO:
         self.exception_handlers: dict[str, Callable[..., Any]] = kwargs.get("exception_handlers", {})
         self.default_exception_handler: Optional[Callable[..., Any]] = kwargs.get("default_exception_handler", None)
 
+        # Boolean checks if the session is managed by this extension
         self.manage_session: bool = kwargs.get("manage_session", True)
+
+        # Async mode and launch mode
         self.async_mode: str = kwargs.pop("async_mode", "asgi")
         self.launch_mode: str = kwargs.pop("launch_mode", "uvicorn")  # default to uvicorn, can be changed by the user
+
+        # CORS allowed origins, default to '*'
         self.cors_allowed_origins: TCorsAllowOrigin = kwargs.pop("cors_allowed_origins", "*")
+
         # We can call init_app when:
-        # - we were given the Flask app instance (standard initialization)
+        # - we were given the Quart app instance (standard initialization)
         # - we were not given the app, but we were given a message_queue
         #   (standard initialization for auxiliary process)
         # In all other cases we collect the arguments and assume the client
@@ -587,19 +594,19 @@ class SocketIO:
     async def run(self, app: Quart, host: Optional[str] = None, port: Optional[int] = None, **kwargs: Any) -> None:
         """Run the SocketIO web server.
 
-        :param app: The Flask application instance.
+        :param app: The Quart application instance.
         :param host: The hostname or IP address for the server to listen on.
                      Defaults to 127.0.0.1.
         :param port: The port number for the server to listen on. Defaults to
                      5000.
         :param debug: ``True`` to start the server in debug mode, ``False`` to
                       start in normal mode.
-        :param use_reloader: ``True`` to enable the Flask reloader, ``False``
+        :param use_reloader: ``True`` to enable the Quart reloader, ``False``
                              to disable it.
         :param reloader_options: A dictionary with options that are passed to
-                                 the Flask reloader, such as ``extra_files``,
+                                 the Quart reloader, such as ``extra_files``,
                                  ``reloader_type``, etc.
-        :param extra_files: A list of additional files that the Flask
+        :param extra_files: A list of additional files that the Quart
                             reloader should watch. Defaults to ``None``.
                             Deprecated, use ``reloader_options`` instead.
         :param log_output: If ``True``, the server logs all incoming
@@ -694,22 +701,22 @@ class SocketIO:
         auth: Optional[dict[str, Any]] = None,
         quart_test_client: Any = None,
     ) -> SocketIOTestClient:
-        """The Socket.IO test client is useful for testing a Flask-SocketIO server.
+        """The Socket.IO test client is useful for testing a Quart-SocketIO server.
 
-        It works in a similar way to the Flask Test Client, but
+        It works in a similar way to the Quart Test Client, but
         adapted to the Socket.IO server.
 
-        :param app: The Flask application instance.
+        :param app: The Quart application instance.
         :param namespace: The namespace for the client. If not provided, the
                           client connects to the server on the global
                           namespace.
         :param query_string: A string with custom query string arguments.
         :param headers: A dictionary with custom HTTP headers.
         :param auth: Optional authentication data, given as a dictionary.
-        :param quart_test_client: The instance of the Flask test client
-                                  currently in use. Passing the Flask test
+        :param quart_test_client: The instance of the Quart test client
+                                  currently in use. Passing the Quart test
                                   client is optional, but is necessary if you
-                                  want the Flask user session and any other
+                                  want the Quart user session and any other
                                   cookies set in HTTP routes accessible from
                                   Socket.IO events.
         """
@@ -740,50 +747,49 @@ class SocketIO:
             # we don't have record of this client, ignore this event
             return "", 400
         app: Quart = self.sockio_mw.quart_app
-        # req = Websocket(
-        #     path=environ["PATH_INFO"],
-        #     query_string=environ["asgi.scope"]["query_string"],
-        #     scheme=environ["asgi.url_scheme"],
-        #     headers=Headers(environ["asgi.scope"]["headers"]),
-        #     root_path=environ["asgi.scope"].get("root_path", ""),
-        #     http_version=environ["SERVER_PROTOCOL"],
-        #     receive=environ["asgi.receive"],
-        #     send=environ["asgi.send"],
-        #     subprotocols=environ["asgi.scope"].get("subprotocols", []),
-        #     accept=environ["asgi.scope"].get("accept"),
-        #     close=environ["asgi.scope"].get("close"),
-        #     # method=environ["REQUEST_METHOD"],
-        #     scope=environ["asgi.scope"],
-        # )
 
-        req = Request(
-            method=environ["REQUEST_METHOD"],
-            scheme=environ["asgi.url_scheme"],
+        # Construct the request object
+        req = Websocket(
             path=environ["PATH_INFO"],
             query_string=environ["asgi.scope"]["query_string"],
+            scheme=environ["asgi.url_scheme"],
             headers=Headers(environ["asgi.scope"]["headers"]),
             root_path=environ["asgi.scope"].get("root_path", ""),
             http_version=environ["SERVER_PROTOCOL"],
+            receive=environ["asgi.receive"],
+            send=environ["asgi.send"],
+            subprotocols=environ["asgi.scope"].get("subprotocols", []),
+            accept=environ["asgi.scope"].get("accept"),
+            close=environ["asgi.scope"].get("close"),
             scope=environ["asgi.scope"],
-            send_push_promise=self.send_push_promise,
         )
 
+        # req = Request(
+        #     method=environ["REQUEST_METHOD"],
+        #     scheme=environ["asgi.url_scheme"],
+        #     path=environ["PATH_INFO"],
+        #     query_string=environ["asgi.scope"]["query_string"],
+        #     headers=Headers(environ["asgi.scope"]["headers"]),
+        #     root_path=environ["asgi.scope"].get("root_path", ""),
+        #     http_version=environ["SERVER_PROTOCOL"],
+        #     scope=environ["asgi.scope"],
+        #     send_push_promise=self.send_push_promise,
+        # )
+
         async with app.request_context(req):
+            session_obj: _ManagedSession | Any = (
+                environ.setdefault("saved_session", _ManagedSession(session))
+                if self.manage_session
+                else session._get_current_object()
+            )  # noqa: SLF001
+            ctx = (
+                quart.globals.request_ctx._get_current_object()
+                if hasattr(quart, "globals") and hasattr(quart.globals, "request_ctx")
+                else quart._request_ctx_stack.top
+            )  # noqa: SLF001
             if self.manage_session:
-                # manage a separate session for this client's Socket.IO events
-                # created as a copy of the regular user session
-                if "saved_session" not in environ:
-                    environ["saved_session"] = _ManagedSession(session)
-                session_obj = environ["saved_session"]
-                if hasattr(quart, "globals") and hasattr(quart.globals, "request_ctx"):
-                    # update session for Flask >= 2.2
-                    ctx = quart.globals.request_ctx._get_current_object()  # noqa: SLF001
-                else:  # pragma: no cover
-                    # update session for Flask < 2.2
-                    ctx = quart._request_ctx_stack.top  # noqa: SLF001
                 ctx.session = session_obj
-            else:
-                session_obj = session._get_current_object()  # noqa: SLF001
+
             request.sid = sid
             request.namespace = namespace
             request.event = {"message": message, "args": args}
@@ -803,7 +809,7 @@ class SocketIO:
 
                 return err
             if not self.manage_session:
-                # when Flask is managing the user session, it needs to save it
+                # when Quart is managing the user session, it needs to save it
                 if not hasattr(session_obj, "modified") or session_obj.modified:
                     resp = app.response_class()
                     app.session_interface.save_session(app, session_obj, resp)
