@@ -8,7 +8,6 @@ import click  # noqa: F401
 import quart
 import socketio
 from quart import Quart, Websocket, has_request_context, session
-from quart import json as quart_json
 from quart import websocket as request
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
@@ -17,7 +16,6 @@ from quart_socketio._core import Controller
 from quart_socketio._types import TExceptionHandler, TFunction
 
 from ._manager import _ManagedSession
-from ._middleare import QuartSocketIOMiddleware
 from ._namespace import Namespace
 from ._utils import (
     call,
@@ -123,85 +121,7 @@ class SocketIO(Controller):
 
     """
 
-    reason: Any = socketio.AsyncServer.reason
-
-    async def init_app(self, app: Quart, **kwargs: Union[str, bool, float, dict, None]) -> None:
-        """
-        Initialize the SocketIO extension for the given Quart application.
-
-        :param app: The Quart application instance to initialize with SocketIO.
-        :param kwargs: Additional keyword arguments for server configuration.
-        """
-        if app is not None:
-            if not hasattr(app, "extensions"):
-                app.extensions = {}  # pragma: no cover
-            app.extensions["socketio"] = self
-
-        self.server_options.update(kwargs)
-        self.manage_session = self.server_options.pop("manage_session", self.manage_session)
-
-        if "client_manager" not in kwargs:
-            self.client_manager(app)
-
-        if "json" in self.server_options and self.server_options["json"] == quart_json:
-            self.json_setting(app)
-
-        resource = self.server_options.pop("path", None) or self.server_options.pop("resource", None) or "socket.io"
-        if resource.startswith("/"):
-            resource = resource[1:]
-
-        self.server_options["async_mode"] = self.async_mode
-        self.server_options["cors_allowed_origins"] = self.cors_allowed_origins
-
-        self.server = socketio.AsyncServer(**self.server_options)
-        self.async_mode = self.server.async_mode
-        for handler in self.handlers:
-            self.server.on(handler[0], handler[1], namespace=handler[2])
-        for namespace_handler in self.namespace_handlers:
-            self.server.register_namespace(namespace_handler)
-
-        if app is not None:
-            # here we attach the SocketIO middleware to the SocketIO object so
-            # it can be referenced later if debug middleware needs to be
-            # inserted
-            self.sockio_mw = QuartSocketIOMiddleware(self.server, app, socketio_path=resource)
-            app.asgi_app = self.sockio_mw
-
-    async def run(self, **kwargs: Union[str, bool, float, dict, None]) -> None:
-        self.config.update(kwargs)
-        self.server_options = self.server_options.update(**kwargs)
-
-        app = self.config.app
-
-        if not app:
-            raise ValueError("Quart application instance is required to run the server.")
-
-        if self.config.extra_files:
-            self.config.reloader_options["extra_files"] = self.config.extra_files
-
-        async_mode = kwargs.get("launch_mode", self.launch_mode)
-
-        app.debug = self.config.debug
-
-        await self.update_socketio_middleware(app)
-
-        if async_mode not in ["uvicorn", "hypercorn", "threading"]:
-            raise ValueError(
-                f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn', 'hypercorn' and 'threading'."
-            )
-
-        if async_mode == "uvicorn":
-            from quart_socketio._uvicorn import run_uvicorn
-
-            await run_uvicorn(**self.config.to_dict())
-
-        elif async_mode == "hypercorn":
-            from quart_socketio._hypercorn import run_hypercorn
-
-            await run_hypercorn(**self.config.to_dict())
-
-        elif self.server.eio.async_mode == "threading":
-            await self.threading_mode()
+    reason: socketio.AsyncServer.reason = socketio.AsyncServer.reason
 
     async def register_namespace(self, namespace_handler: Namespace) -> None:
         """Register a namespace handler object.
@@ -214,6 +134,7 @@ class SocketIO(Controller):
             raise ValueError("Not a namespace instance")
         if self.server is None:
             raise RuntimeError("SocketIO server is not initialized")
+
         namespace_handler._set_server(self)
         self.server.register_namespace(namespace_handler)
         self.namespace_handlers.append(namespace_handler)
@@ -300,7 +221,7 @@ class SocketIO(Controller):
         def decorator(exception_handler: TExceptionHandler) -> TExceptionHandler:
             if not callable(exception_handler):
                 raise ValueError("exception_handler must be callable")
-            self.exception_handlers[namespace] = exception_handler
+            self.config.exception_handlers[namespace] = exception_handler
             return exception_handler
 
         return decorator
@@ -318,7 +239,8 @@ class SocketIO(Controller):
         """
         if not callable(exception_handler):
             raise ValueError("exception_handler must be callable")
-        self.default_exception_handler = exception_handler
+
+        self.config.default_exception_handler = exception_handler
         return exception_handler
 
     def on_event(self, message: str, handler: Callable[..., Any], namespace: Optional[str] = None) -> None:
@@ -696,7 +618,7 @@ class SocketIO(Controller):
         async with app.request_context(req):
             session_obj: _ManagedSession | Any = (
                 environ.setdefault("saved_session", _ManagedSession(session))
-                if self.manage_session
+                if self.config.manage_session
                 else session._get_current_object()
             )  # noqa: SLF001
             ctx = (
@@ -704,7 +626,7 @@ class SocketIO(Controller):
                 if hasattr(quart, "globals") and hasattr(quart.globals, "request_ctx")
                 else quart._request_ctx_stack.top
             )  # noqa: SLF001
-            if self.manage_session:
+            if self.config.manage_session:
                 ctx.session = session_obj
 
             request.sid = sid
@@ -725,7 +647,7 @@ class SocketIO(Controller):
                 err = "".join(traceback.format_exception_only(e))
 
                 return err
-            if not self.manage_session:
+            if not self.config.manage_session:
                 # when Quart is managing the user session, it needs to save it
                 if not hasattr(session_obj, "modified") or session_obj.modified:
                     resp = app.response_class()

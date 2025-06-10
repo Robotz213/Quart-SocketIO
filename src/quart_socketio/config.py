@@ -1,27 +1,32 @@
 import logging  # noqa: D100
 from dataclasses import dataclass
-from types import ModuleType
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import socketio
 from quart import Quart
 
-from quart_socketio._types import ASyncServerType, CustomJsonClass
+from quart_socketio._namespace import Namespace
+from quart_socketio._types import ASyncServerType, CustomJsonClass, TExceptionHandler
 
 
 @dataclass
 class Config:
     """Configuration for the Quart-SocketIO application."""
 
+    handlers: List[Tuple[str, Callable[..., Any], str]] = []
     app: Quart = None
     debug: bool = False
     allow_unsafe_werkzeug: bool = False
     use_reloader: bool = False
-    extra_files: Optional[List[str]] = None
+    extra_files: List[str] = []
     reloader_options: Dict[str, Any] = {}
-    server_options: Dict[str, Any] = None
+    server_options: Dict[str, Any] = {}
     launch_mode: str = "uvicorn"
     server: ASyncServerType = None
+    namespace_handlers: List[Namespace] = []
+    exception_handlers: Dict[str, TExceptionHandler] = {}
+    default_exception_handler: TExceptionHandler = None
+    manage_session: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a dictionary with the configuration parameters."""
@@ -132,7 +137,9 @@ class AsyncSocketIOConfig:
 
     client_manager: Optional[socketio.AsyncClientManager] = None
     logger: bool = False
-    json: Optional[Union[ModuleType, CustomJsonClass]] = None
+    socketio_path: str = "/socket.io"
+    engineio_path: str = "/engine.io"
+    json: CustomJsonClass = None
     async_handlers: bool = True
     always_connect: bool = False
     namespaces: Union[str, List[str]] = ["/"]

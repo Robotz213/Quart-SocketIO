@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import sys
-from os import getpid
-from typing import TYPE_CHECKING, Any, AnyStr, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, AnyStr, Optional, Union
 
 import socketio
 from quart import Quart
 from quart import json as quart_json
 from werkzeug.debug import DebuggedApplication
 
-from quart_socketio import Namespace
+from quart_socketio._middleare import QuartSocketIOMiddleware
 from quart_socketio._types import TQueueClassMap
 from quart_socketio.config import AsyncSocketIOConfig, Config
 
@@ -23,9 +21,10 @@ if TYPE_CHECKING:
 
 
 class Controller:
+    server: socketio.AsyncServer | None = None
     asgi_server: "uvicorn.Server" | "hypercorn.Server" | None = None
     shutdown_event = asyncio.Event()
-    config = Config
+    config: Config = None
     sockio_mw: socketio.ASGIApp | None = None
     server_options: AsyncSocketIOConfig = None
 
@@ -51,11 +50,101 @@ class Controller:
             **kwargs: Additional Socket.IO and Engine.IO server options.
 
         """
-        if not config:
-            self.config = Config(app=app, **kwargs)
+        if config and not isinstance(config, Config):
+            raise TypeError("config must be an instance of Config")
 
-        if not socket_config:
-            self.server_options = AsyncSocketIOConfig(**kwargs)
+        if socket_config and not isinstance(socket_config, AsyncSocketIOConfig):
+            raise TypeError("socket_config must be an instance of AsyncSocketIOConfig")
+
+        self.config = config or kwargs.pop("config", Config(app=app, **kwargs))
+        self.socket_config = socket_config or kwargs.pop("socket_config", AsyncSocketIOConfig(**kwargs))
+
+    def init_app(
+        self,
+        app: Quart = None,
+        config: Config = None,
+        socket_config: AsyncSocketIOConfig = None,
+        **kwargs: Union[str, bool, float, dict, None],
+    ) -> None:
+        """
+        Initialize the SocketIO extension for the given Quart application.
+
+        :param app: The Quart application instance to initialize with SocketIO.
+        :param kwargs: Additional keyword arguments for server configuration.
+        """
+        if not self.config:
+            if not isinstance(config, Config):
+                raise TypeError("config must be an instance of Config")
+            self.config = config or kwargs.pop("config", Config(app=app, **kwargs))
+
+        if not self.server_options:
+            if not isinstance(socket_config, AsyncSocketIOConfig):
+                raise TypeError("socket_config must be an instance of AsyncSocketIOConfig")
+            self.server_options = socket_config or kwargs.pop("server_options", AsyncSocketIOConfig(**kwargs))
+
+        if app is not None:
+            if not hasattr(app, "extensions"):
+                app.extensions = {}  # pragma: no cover
+            app.extensions["socketio"] = self
+
+        app = self.config.app or app
+        if not app:
+            raise ValueError("Quart application instance is required to initialize the server.")
+
+        if "client_manager" not in kwargs:
+            self.client_manager(app)
+
+        if self.server_options.json and self.server_options.json == quart_json:
+            self.json_setting(app)
+
+        self.server = socketio.AsyncServer(**self.server_options)
+        for handler in self.config.handlers:
+            self.server.on(handler[0], handler[1], namespace=handler[2])
+        for namespace_handler in self.config.namespace_handlers:
+            self.server.register_namespace(namespace_handler)
+
+        if app is not None:
+            # here we attach the SocketIO middleware to the SocketIO object so
+            # it can be referenced later if debug middleware needs to be
+            # inserted
+            self.sockio_mw = QuartSocketIOMiddleware(self.server, app, socketio_path=self.server_options.socketio_path)
+            app.asgi_app = self.sockio_mw
+
+    async def run(self, **kwargs: Union[str, bool, float, dict, None]) -> None:
+        self.config.update(kwargs)
+        self.server_options = self.server_options.update(**kwargs)
+
+        app = self.config.app
+
+        if not app:
+            raise ValueError("Quart application instance is required to run the server.")
+
+        if self.config.extra_files:
+            self.config.reloader_options["extra_files"] = self.config.extra_files
+
+        async_mode = kwargs.get("launch_mode", self.launch_mode)
+
+        app.debug = self.config.debug
+
+        await self.update_socketio_middleware(app)
+
+        if async_mode not in ["uvicorn", "hypercorn", "threading"]:
+            raise ValueError(
+                f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn', 'hypercorn' and 'threading'."
+            )
+
+        if async_mode == "uvicorn":
+            from quart_socketio._uvicorn import run_uvicorn
+
+            await run_uvicorn(**self.config.to_dict())
+
+        elif async_mode == "hypercorn":
+            from quart_socketio._hypercorn import run_hypercorn
+
+            await run_hypercorn(**self.config.to_dict())
+
+        elif self.server.eio.async_mode == "threading":
+            await self.threading_mode()
 
     async def client_manager(self, app: Quart) -> None:
         url: str = self.server_options.get("message_queue", None)
