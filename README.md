@@ -34,8 +34,7 @@ if __name__ == '__main__':
 
 ## Resources
 
-- [Quart Documentation](https://pgjones.gitlab.io/quart/)
-- [Quart-SocketIO Documentation](https://github.com/seu-usuario/quart-socketio)
-- [PyPI](https://pypi.python.org/pypi/quart-socketio)
-- [Change Log](https://github.com/seu-usuario/quart-socketio/blob/main/CHANGES.md)
-- Questions? See [existing questions](https://stackoverflow.com/questions/tagged/quart-socketio) on Stack Overflow, or [ask your own](https://stackoverflow.com/questions/ask?tags=python+quart-socketio+python-socketio).
+- [Quart Documentation](https://quart.palletsprojects.com/en/latest/)
+- [Flask-SocketIO Documentation](https://flask-socketio.readthedocs.io/en/latest/)
+- [PyPI (unavailable)](#)
+- Questions? See [existing questions](https://stackoverflow.com/questions/tagged/flask-socketio) on Stack Overflow, or [ask your own](https://stackoverflow.com/questions/ask?tags=python+flask-socketio+python-socketio).
