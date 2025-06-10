@@ -2,7 +2,7 @@ from __future__ import annotations  # noqa: D104
 
 import traceback
 from functools import wraps
-from typing import Any, AnyStr, Callable, Dict, List, Optional, TypeVar, Union
+from typing import Any, AnyStr, Callable, Dict, List, Optional, Union
 
 import quart
 import socketio
@@ -10,6 +10,8 @@ from quart import Quart, Request, has_request_context, request, session
 from quart import json as quart_json
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
+
+from quart_socketio._types import TCorsAllowOrigin, TExceptionHandler, TFunction, TQueueClassMap
 
 from ._manager import _ManagedSession
 from ._middleare import QuartSocketIOMiddleware
@@ -25,9 +27,6 @@ from ._utils import (
     send,
 )
 from .test_client import SocketIOTestClient
-
-TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
-TFunction = TypeVar("TFunction", bound=Callable[..., Any])
 
 __all__ = [
     "close_room",
@@ -45,63 +44,54 @@ __all__ = [
 
 class SocketIO:
     """
-    Quart-SocketIO server for async WebSocket communication.
+    SocketIO extension for Quart, enabling async WebSocket communication using the Socket.IO protocol.
 
-    Args:
-        app (Quart, optional): Quart application instance. If not provided,
-            call `socketio.init_app(app)` later.
-        manage_session (bool, optional): If True, manages user session for
-            Socket.IO events. If False, uses Quart's session management.
-            Recommended True for cookie-based sessions; use False for
-            server-side sessions to share session between HTTP and Socket.IO.
-        message_queue (str, optional): Connection URL for a message queue
-            service for multi-process communication. Not required for single
-            process.
-        channel (str, optional): Channel name for the message queue. If not
-            specified, a default is used. Use different channels for separate
-            SocketIO clusters.
-        path (str, optional): Path where the Socket.IO server is exposed.
-            Defaults to 'socket.io'.
-        resource (str, optional): Alias for `path`.
-        **kwargs: Additional Socket.IO and Engine.IO server options.
+    This class provides integration between Quart and python-socketio, allowing you to handle real-time
+    bi-directional communication between clients and your Quart application. It supports broadcasting,
+    rooms, namespaces, background tasks, and multi-process setups via message queues.
 
-    Socket.IO server options:
-        client_manager: Client manager instance. If omitted, uses in-memory
-            structure.
-        logger: Set True or a logger object to enable logging, False to
-            disable.
-        json: Alternative json module for encoding/decoding packets. Use
-            `quart.json` for Quart compatibility.
-        async_handlers: If True, event handlers run in separate threads. If
-            False, run synchronously.
-        always_connect: If False, new connections are provisional until the
-            connect handler returns non-False. If True, connections are
-            accepted immediately.
+    Arguments:
+        app (Optional[Quart]): The Quart application instance. If not provided, call `init_app(app)` later.
+        manage_session (bool, optional): If True, manages user sessions for Socket.IO events separately.
+            Set to False to use Quart's session management, which is recommended for server-side sessions.
+        message_queue (str, optional): URL for a message queue (e.g., Redis, Kafka, ZMQ, Kombu) to enable
+            multi-process communication. Not required for single-process deployments.
+        channel (str, optional): Channel name for the message queue. Use different channels for separate
+        path (str, optional): URL path where the Socket.IO server is exposed. Defaults to 'socket.io'.
+        cors_allowed_origins (str, list, or callable, optional): Allowed origins for CORS. Defaults to '*'.
+        async_mode (str, optional): Async mode to use. Options: 'uvicorn', 'hypercorn'. Defaults to 'uvicorn'.
+        launch_mode (str, optional): Alias for async_mode.
+        **kwargs: Additional options for Socket.IO and Engine.IO servers.
+        client_manager: Custom client manager instance. Defaults to in-memory manager.
+        logger: Enable logging (True or logger object) or disable (False).
+        json: Custom JSON module for encoding/decoding packets. Use `quart.json` for Quart compatibility.
+        async_handlers: If True, event handlers run in separate threads. If False, run synchronously.
+        always_connect: If True, connections are accepted immediately. If False, connections are provisional
+            until the connect handler returns non-False.
+        async_mode: Async model to use. Options: 'threading', 'eventlet', 'gevent', 'gevent_uwsgi'.
+            If not set, tries in order: 'eventlet', 'gevent_uwsgi', 'gevent', 'threading'.
+        ping_timeout: Seconds client waits for server response before disconnecting. Default: 5.
+        max_http_buffer_size: Max message size for polling transport. Default: 1,000,000 bytes.
+        http_compression: Enable compression for polling transport. Default: True.
+        compression_threshold: Only compress messages above this size (bytes). Default: 1024.
+        cookie: Name of HTTP cookie for session id, or dict with cookie attributes, or None to disable.
+        cors_allowed_origins: Origin(s) allowed to connect. Default: same origin. Use '*' to allow all.
+        cors_credentials: Allow credentials (cookies, auth) in requests. Default: True.
+        monitor_clients: If True, background task closes inactive clients. Default: True.
+        engineio_logger: Enable Engine.IO logs (True or logger), or disable (False). Default: False.
 
-    Engine.IO server options:
-        async_mode: Async model to use. Options: 'threading', 'eventlet',
-            'gevent', 'gevent_uwsgi'. If not set, tries in order:
-            'eventlet', 'gevent_uwsgi', 'gevent', 'threading'.
-        ping_interval: Interval in seconds for server pings. Default: 25.
-        ping_timeout: Seconds client waits for server response before
-            disconnecting. Default: 5.
-        max_http_buffer_size: Max message size for polling transport.
-            Default: 1,000,000 bytes.
-        allow_upgrades: Allow transport upgrades. Default: True.
-        http_compression: Enable compression for polling transport. Default:
-            True.
-        compression_threshold: Only compress messages above this size
-            (bytes). Default: 1024.
-        cookie: Name of HTTP cookie for session id, or dict with cookie
-            attributes, or None to disable.
-        cors_allowed_origins: Origin(s) allowed to connect. Default: same
-            origin. Use '*' to allow all.
-        cors_credentials: Allow credentials (cookies, auth) in requests.
-            Default: True.
-        monitor_clients: If True, background task closes inactive clients.
-            Default: True.
-        engineio_logger: Set True or logger for Engine.IO logs, False to
-            disable. Default: False.
+    Attributes:
+        server (Optional[socketio.AsyncServer]): The underlying Socket.IO server instance.
+        server_options (dict): Options passed to the Socket.IO server.
+        asgi_server: Reference to the ASGI server instance.
+        handlers (list): Registered event handlers.
+        namespace_handlers (list): Registered namespace handler instances.
+        exception_handlers (dict): Custom exception handlers per namespace.
+        default_exception_handler (Optional[Callable]): Default exception handler.
+        manage_session (bool): Whether to manage sessions for Socket.IO events.
+        async_mode (str): The async mode in use.
+        launch_mode (str): The launch mode/server backend.
+        cors_allowed_origins (str, list, or callable): Allowed CORS origins.
 
     Example:
         ```python
@@ -119,7 +109,13 @@ class SocketIO:
 
 
         if __name__ == "__main__":
-            socketio.run(app)
+            asyncio.run(socketio.run(app))
+
+            # Or
+            async def main():
+                await socketio.run(app)
+
+            asyncio.run(main())
         ```
 
     """
@@ -138,17 +134,23 @@ class SocketIO:
         """
         self.server: Optional[socketio.AsyncServer] = None
         self.server_options: dict[str, Any] = {}
+
+        # ASGI Application Server
         self.asgi_server = None
-        self.handlers: list[Any] = []
-        self.namespace_handlers: list[Any] = kwargs.get("namespace_handlers", [])
-        self.exception_handlers: dict[str, Callable[..., Any]] = {}
-        self.default_exception_handler: Optional[Callable[..., Any]] = None
-        self.manage_session: bool = True
+
+        # Handlers
+        self.handlers: list[Callable[..., Any | None]] = []
+
+        self.namespace_handlers: list[Namespace] = kwargs.get("namespace_handlers", [])
+
+        # Callable Exception Handlers
+        self.exception_handlers: dict[str, Callable[..., Any]] = kwargs.get("exception_handlers", {})
+        self.default_exception_handler: Optional[Callable[..., Any]] = kwargs.get("default_exception_handler", None)
+
+        self.manage_session: bool = kwargs.get("manage_session", True)
         self.async_mode: str = kwargs.pop("async_mode", "asgi")
         self.launch_mode: str = kwargs.pop("launch_mode", "uvicorn")  # default to uvicorn, can be changed by the user
-        self.cors_allowed_origins: Optional[Union[str, List[str], Callable[[], bool]]] = kwargs.pop(
-            "cors_allowed_origins", "*"
-        )
+        self.cors_allowed_origins: TCorsAllowOrigin = kwargs.pop("cors_allowed_origins", "*")
         # We can call init_app when:
         # - we were given the Flask app instance (standard initialization)
         # - we were not given the app, but we were given a message_queue
@@ -171,6 +173,7 @@ class SocketIO:
             if not hasattr(app, "extensions"):
                 app.extensions = {}  # pragma: no cover
             app.extensions["socketio"] = self
+
         self.server_options.update(kwargs)
         self.manage_session = self.server_options.pop("manage_session", self.manage_session)
 
@@ -179,14 +182,17 @@ class SocketIO:
             channel = self.server_options.pop("channel", "quart-socketio")
             write_only = app is None
             if url:
-                if url.startswith(("redis://", "rediss://")):
-                    queue_class = socketio.AsyncRedisManager
-                elif url.startswith("kafka://"):
-                    queue_class = socketio.KafkaManager
-                elif url.startswith("zmq"):
-                    queue_class = socketio.ZmqManager
-                else:
-                    queue_class = socketio.KombuManager
+                queue_class = socketio.KombuManager
+                queue_class_map: TQueueClassMap = {
+                    ("redis://", "rediss://"): socketio.AsyncRedisManager,
+                    ("kafka://",): socketio.KafkaManager,
+                    ("zmq",): socketio.ZmqManager,
+                }
+                for prefixes, cls in queue_class_map.items():
+                    if url.startswith(prefixes):
+                        queue_class = cls
+                        break
+
                 queue = queue_class(url, channel=channel, write_only=write_only)
                 self.server_options["client_manager"] = queue
 
@@ -195,18 +201,18 @@ class SocketIO:
             # changes when it is invoked inside or outside the app context
             # so here to prevent any ambiguities we replace it with wrappers
             # that ensure that the app context is always present
-            class FlaskSafeJSON:
+            class QuartSafeJson:
                 @staticmethod
-                def dumps(*args: str | int | bool, **kwargs: str | int | bool) -> str:
+                async def dumps(*args: str | int | bool, **kwargs: str | int | bool) -> str:
                     with app.app_context():
                         return quart_json.dumps(*args, **kwargs)
 
                 @staticmethod
-                def loads(*args: str | int | bool, **kwargs: str | int | bool) -> dict[str, AnyStr | int | bool]:
-                    with app.app_context():
+                async def loads(*args: str | int | bool, **kwargs: str | int | bool) -> dict[str, AnyStr | int | bool]:
+                    async with app.app_context():
                         return quart_json.loads(*args, **kwargs)
 
-            self.server_options["json"] = FlaskSafeJSON
+            self.server_options["json"] = QuartSafeJson
 
         resource = self.server_options.pop("path", None) or self.server_options.pop("resource", None) or "socket.io"
         if resource.startswith("/"):
