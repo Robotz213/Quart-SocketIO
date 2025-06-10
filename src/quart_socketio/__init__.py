@@ -191,9 +191,9 @@ class SocketIO:
         self.manage_session = self.server_options.pop("manage_session", self.manage_session)
 
         if "client_manager" not in kwargs:
-            url = self.server_options.get("message_queue", None)
-            channel = self.server_options.pop("channel", "quart-socketio")
-            write_only = app is None
+            url: str = self.server_options.get("message_queue", None)
+            channel: str = self.server_options.pop("channel", "quart-socketio")
+            write_only: bool = app is None
             if url:
                 queue_class = socketio.KombuManager
                 queue_class_map: TQueueClassMap = {
@@ -210,7 +210,7 @@ class SocketIO:
                 self.server_options["client_manager"] = queue
 
         if "json" in self.server_options and self.server_options["json"] == quart_json:
-            # quart's json module is tricky to use because its output
+            # Quart's json module is tricky to use because its output
             # changes when it is invoked inside or outside the app context
             # so here to prevent any ambiguities we replace it with wrappers
             # that ensure that the app context is always present
