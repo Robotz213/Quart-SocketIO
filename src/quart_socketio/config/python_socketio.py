@@ -1,48 +1,10 @@
 import logging  # noqa: D100
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import socketio
-from quart import Quart
 
-from quart_socketio._namespace import Namespace
-from quart_socketio._types import ASyncServerType, CustomJsonClass, TExceptionHandler
-
-
-@dataclass
-class Config:
-    """Configuration for the Quart-SocketIO application."""
-
-    handlers: List[Tuple[str, Callable[..., Any], str]] = []
-    app: Quart = None
-    debug: bool = False
-    allow_unsafe_werkzeug: bool = False
-    use_reloader: bool = False
-    extra_files: List[str] = []
-    reloader_options: Dict[str, Any] = {}
-    server_options: Dict[str, Any] = {}
-    launch_mode: str = "uvicorn"
-    server: ASyncServerType = None
-    namespace_handlers: List[Namespace] = []
-    exception_handlers: Dict[str, TExceptionHandler] = {}
-    default_exception_handler: TExceptionHandler = None
-    manage_session: bool = True
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Return a dictionary with the configuration parameters."""
-        kw = {
-            item: getattr(self, item)
-            for item in dir(AsyncSocketIOConfig)
-            if not item.startswith("_") and item != "to_dict"
-        }
-
-        return kw
-
-    def update(self, **kwargs: Any) -> None:
-        """Update the configuration with the provided keyword arguments."""
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
+from quart_socketio._types import CustomJsonClass
 
 
 @dataclass
@@ -171,30 +133,3 @@ class AsyncSocketIOConfig:
         """Update the configuration with the provided keyword arguments."""
         for key, value in kwargs.items():
             setattr(self, key, value)
-
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get a configuration value by key."""
-        return getattr(self, key, default)
-
-    def __getitem__(self, key: str) -> Any:
-        """Get a configuration value by key."""
-        return getattr(self, key)
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        """Set a configuration value by key."""
-        setattr(self, key, value)
-
-    def __delitem__(self, key: str) -> None:
-        """Delete a configuration value by key."""
-        if hasattr(self, key):
-            delattr(self, key)
-        else:
-            raise KeyError(f"Configuration key '{key}' does not exist.")
-
-    def pop(self, key: str, default: Any = None) -> Any:
-        """Remove a configuration value by key and return it."""
-        if hasattr(self, key):
-            value = getattr(self, key)
-            delattr(self, key)
-            return value
-        return default

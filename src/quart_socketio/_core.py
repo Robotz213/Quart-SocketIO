@@ -11,7 +11,8 @@ from werkzeug.debug import DebuggedApplication
 
 from quart_socketio._middleare import QuartSocketIOMiddleware
 from quart_socketio._types import TQueueClassMap
-from quart_socketio.config import AsyncSocketIOConfig, Config
+from quart_socketio.config.python_socketio import AsyncSocketIOConfig
+from quart_socketio.config.quart_socketio import Config
 
 if TYPE_CHECKING:
     import uvicorn
@@ -122,15 +123,14 @@ class Controller:
         if self.config.extra_files:
             self.config.reloader_options["extra_files"] = self.config.extra_files
 
-        async_mode = kwargs.get("launch_mode", self.launch_mode)
-
+        async_mode = self.config.launch_mode
         app.debug = self.config.debug
 
         await self.update_socketio_middleware(app)
 
         if async_mode not in ["uvicorn", "hypercorn", "threading"]:
             raise ValueError(
-                f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn', 'hypercorn' and 'threading'."
+                f"Invalid launch mode '{async_mode}'. Supported modes are 'uvicorn', 'hypercorn' and 'threading'."
             )
 
         if async_mode == "uvicorn":
