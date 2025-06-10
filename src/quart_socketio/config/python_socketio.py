@@ -1,11 +1,9 @@
 import logging  # noqa: D100
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 from quart_socketio._types import CustomJsonClass, TQueueClasses
 
 
-@dataclass(match_args=False, eq=False, init=False)
 class AsyncSocketIOConfig:
     """Configuration for the Quart-SocketIO server.
 
@@ -114,7 +112,7 @@ class AsyncSocketIOConfig:
     cors_allowed_origins: Union[str, List[str]] = "*"
     cors_credentials: bool = True
     monitor_clients: bool = True
-    transports: List[str] = field(default_factory=lambda: ["polling", "websocket"])
+    transports: List[str] = ["polling", "websocket"]
     engineio_logger: Union[bool, logging.Logger] = False
     message_queue: Optional[str] = None
     channel: str = "quart-socketio"

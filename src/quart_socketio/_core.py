@@ -77,12 +77,12 @@ class Controller:
         :param kwargs: Additional keyword arguments for server configuration.
         """
         if not self.config:
-            if not isinstance(config, Config):
+            if config and not isinstance(config, Config):
                 raise TypeError("config must be an instance of Config")
             self.config = config or kwargs.pop("config", Config(app=app, **kwargs))
 
         if not self.server_options:
-            if not isinstance(socket_config, AsyncSocketIOConfig):
+            if socket_config and not isinstance(socket_config, AsyncSocketIOConfig):
                 raise TypeError("socket_config must be an instance of AsyncSocketIOConfig")
             self.server_options = socket_config or kwargs.pop("server_options", AsyncSocketIOConfig(**kwargs))
         app = self.config.app or app
