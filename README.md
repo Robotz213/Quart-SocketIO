@@ -1,7 +1,5 @@
 # Quart-SocketIO
 
-[![Build status](https://github.com/seu-usuario/quart-socketio/workflows/build/badge.svg)](https://github.com/seu-usuario/quart-socketio/actions)
-
 Socket.IO integration for Quart applications.
 
 > **Note:** This project is a fork of [Flask-SocketIO](https://github.com/miguelgrinberg/Flask-SocketIO), adapted to work with the [Quart](https://pgjones.gitlab.io/quart/) framework.
