@@ -13,6 +13,10 @@ class Namespace(BaseNamespace):
         super().__init__(namespace)
         self.socketio = None
 
+    def is_asyncio_based(self) -> bool:
+        """Check if the namespace is asyncio-based."""
+        return True
+
     def _set_server(self, socketio: SocketIO) -> None:
         self.socketio = socketio
 
