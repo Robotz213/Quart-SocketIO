@@ -242,6 +242,36 @@ class SocketIO:
             self.sockio_mw = QuartSocketIOMiddleware(self.server, app, socketio_path=resource)
             app.asgi_app = self.sockio_mw
 
+    async def register_namespace(self, namespace_handler: Namespace) -> None:
+        """Register a namespace handler object.
+
+        :param namespace_handler: An instance of a :class:`Namespace` subclass
+                                  that handles all the event traffic for a
+                                  namespace.
+        """
+        if not isinstance(namespace_handler, Namespace):
+            raise ValueError("Not a namespace instance")
+        if self.server is None:
+            raise RuntimeError("SocketIO server is not initialized")
+        namespace_handler._set_server(self)
+        self.server.register_namespace(namespace_handler)
+        self.namespace_handlers.append(namespace_handler)
+
+    async def unregister_namespace(self, namespace_handler: Namespace) -> None:
+        """Unregister a namespace handler object.
+
+        :param namespace_handler: An instance of a :class:`Namespace` subclass
+                                  that handles all the event traffic for a
+                                  namespace.
+        """
+        if not isinstance(namespace_handler, Namespace):
+            raise ValueError("Not a namespace instance")
+        if self.server is None:
+            raise RuntimeError("SocketIO server is not initialized")
+        namespace_handler._set_server(None)
+        self.server.unregister_namespace(namespace_handler)
+        self.namespace_handlers.remove(namespace_handler)
+
     def on(
         self, message: Union[str, int, bool], namespace: Optional[Union[str, int, bool]] = None
     ) -> Callable[[TFunction], TFunction]:
