@@ -1,12 +1,12 @@
 import uuid  # noqa: D100
 
-from quart import Flask, jsonify, render_template, request, session
+from quart import Quart, jsonify, render_template, request, session
 from quart_login import LoginManager, UserMixin, current_user, login_user, logout_user
 from quart_session import Session
 
 from quart_socketio import SocketIO, emit
 
-app = Flask(__name__)
+app = Quart(__name__)
 app.config["SECRET_KEY"] = uuid.uuid4().hex
 app.config["SESSION_TYPE"] = "filesystem"
 login = LoginManager(app)

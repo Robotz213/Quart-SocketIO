@@ -1,6 +1,7 @@
 from threading import Lock
 
-from quart import Flask, copy_current_request_context, render_template, request, session
+from quart import Quart, copy_current_request_context, render_template, request, session
+
 from quart_socketio import SocketIO, close_room, disconnect, emit, join_room, leave_room, rooms
 
 # Set this variable to "threading", "eventlet" or "gevent" to test the
@@ -8,7 +9,7 @@ from quart_socketio import SocketIO, close_room, disconnect, emit, join_room, le
 # the best option based on installed packages.
 async_mode = None
 
-app = Flask(__name__)
+app = Quart(__name__)
 app.config["SECRET_KEY"] = "secret!"
 socketio = SocketIO(app, async_mode=async_mode, logger=True, engineio_logger=True)
 thread = None

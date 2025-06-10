@@ -1,9 +1,12 @@
 from __future__ import annotations  # noqa: D104
 
+import sys
 import traceback
 from functools import wraps
+from os import getpid
 from typing import Any, AnyStr, Callable, Dict, List, Optional, Union
 
+import click
 import quart
 import socketio
 from quart import Quart, Websocket, has_request_context, session
@@ -11,6 +14,7 @@ from quart import json as quart_json
 from quart import websocket as request
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
+from werkzeug.debug import DebuggedApplication
 
 from quart_socketio._types import TCorsAllowOrigin, TExceptionHandler, TFunction, TQueueClassMap
 
@@ -663,7 +667,13 @@ class SocketIO:
                 port = 5000
 
         debug: bool = kwargs.pop("debug", app.debug)
+        ssl: bool = kwargs.pop("ssl", False)  # noqa: F841
+        if ":" in host:
+            # It's an IPv6 address.
+            addr_format = "%s://[%s]:%d"
+
         log_output: bool = kwargs.pop("log_output", debug)  # noqa: F841
+        allow_unsafe_werkzeug = kwargs.pop("allow_unsafe_werkzeug", False)
         use_reloader: bool = kwargs.pop("use_reloader", debug)  # noqa: F841
         extra_files: Optional[List[str]] = kwargs.pop("extra_files", None)
         reloader_options: Dict[str, Any] = kwargs.pop("reloader_options", {})
@@ -671,11 +681,52 @@ class SocketIO:
         kw = {"app": app, "host": host, "port": port, "debug": debug, "use_reloader": use_reloader}
         kw.update(kwargs)  # add any additional kwargs for hypercorn
 
+        process_id = getpid()
+        message = "Started server process [%d]"
+        color_message = "Started server process [" + click.style("%d", fg="cyan") + "]"
+        app.logger.info(message, process_id, extra={"color_message": color_message})
+
         if extra_files:
             reloader_options["extra_files"] = extra_files
 
         async_mode = kwargs.get("launch_mode", self.launch_mode)
-        if async_mode not in ["uvicorn", "hypercorn"]:
+
+        protocol_name = "https" if ssl else "http"
+        message = f"Quart-SockeIO running on {addr_format} (Press CTRL+C to quit)"
+        color_message = "Quart-SocketIO running on " + click.style(addr_format, bold=True) + " (Press CTRL+C to quit)"
+        app.logger.info(
+            message,
+            protocol_name,
+            host,
+            port,
+            extra={"color_message": color_message},
+        )
+        app.debug = debug
+        if app.debug and self.server.eio.async_mode != "threading":
+            # put the debug middleware between the SocketIO middleware
+            # and the Quart application instance
+            #
+            #    mw1   mw2   mw3   Quart app
+            #     o ---- o ---- o ---- o
+            #    /
+            #   o Quart-SocketIO
+            #    \  middleware
+            #     o
+            #  Quart-SocketIO WebSocket handler
+            #
+            # BECOMES
+            #
+            #  dbg-mw   mw1   mw2   mw3   Quart app
+            #     o ---- o ---- o ---- o ---- o
+            #    /
+            #   o Quart-SocketIO
+            #    \  middleware
+            #     o
+            #  Quart-SocketIO WebSocket handler
+            #
+            self.sockio_mw.wsgi_app = DebuggedApplication(self.sockio_mw.wsgi_app, evalex=True)
+
+        if async_mode not in ["uvicorn", "hypercorn", "threading"]:
             raise ValueError(f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn' and 'hypercorn'.")
 
         if async_mode == "uvicorn":
@@ -687,6 +738,39 @@ class SocketIO:
             from quart_socketio._hypercorn import run_hypercorn
 
             await run_hypercorn(**kw)
+
+        elif self.server.eio.async_mode == "threading":
+            try:
+                import simple_websocket  # noqa: F401
+            except ImportError:
+                from werkzeug._internal import _log
+
+                _log("warning", "WebSocket transport not available. Install simple-websocket for improved performance.")
+            if not sys.stdin or not sys.stdin.isatty():  # pragma: no cover
+                if not allow_unsafe_werkzeug:
+                    raise RuntimeError(
+                        "The Werkzeug web server is not "
+                        "designed to run in production. Pass "
+                        "allow_unsafe_werkzeug=True to the "
+                        "run() method to disable this error."
+                    )
+                else:
+                    from werkzeug._internal import _log
+
+                    _log(
+                        "warning",
+                        (
+                            "Werkzeug appears to be used in a "
+                            "production deployment. Consider "
+                            "switching to a production web server "
+                            "instead."
+                        ),
+                    )
+            app.run(host=host, port=port, threaded=True, use_reloader=use_reloader, **reloader_options, **kwargs)
+
+        message = "Finished server process [%d]"
+        color_message = "Finished server process [" + click.style("%d", fg="cyan") + "]"
+        app.logger.info(message, process_id, extra={"color_message": color_message})
 
     # async def stop(self) -> None:
     #     """Stop a running SocketIO web server.

@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class QuartSocketIOMiddleware(ASGIApp):
-    """WSGI middleware simply exposes the Flask application in the WSGI environment before executing the request."""
+    """WSGI middleware simply exposes the Quart application in the WSGI environment before executing the request."""
 
     def __init__(self, socketio_app: AsyncServer, quart_app: Quart, socketio_path: str = "socket.io") -> None:
         self.quart_app = quart_app

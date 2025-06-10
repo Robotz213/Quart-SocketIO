@@ -19,7 +19,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = "Flask-SocketIO"
+project = "Quart-SocketIO"
 copyright = "2018, Miguel Grinberg"
 author = "Miguel Grinberg"
 

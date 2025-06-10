@@ -28,6 +28,7 @@ exclude = [
     "venv",
     "tests",
     "Lib",
+    "examples/",
 ]
 
 extend-exclude = ["hooks"]
