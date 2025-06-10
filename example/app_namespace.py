@@ -31,25 +31,25 @@ def index():
 
 
 class MyNamespace(Namespace):
-    def on_my_event(self, message):
+    def on_my_event(self, message: str):
         session["receive_count"] = session.get("receive_count", 0) + 1
         emit("my_response", {"data": message["data"], "count": session["receive_count"]})
 
-    def on_my_broadcast_event(self, message):
+    def on_my_broadcast_event(self, message: str):
         session["receive_count"] = session.get("receive_count", 0) + 1
         emit("my_response", {"data": message["data"], "count": session["receive_count"]}, broadcast=True)
 
-    def on_join(self, message):
+    def on_join(self, message: str):
         join_room(message["room"])
         session["receive_count"] = session.get("receive_count", 0) + 1
         emit("my_response", {"data": "In rooms: " + ", ".join(rooms()), "count": session["receive_count"]})
 
-    def on_leave(self, message):
+    def on_leave(self, message: str):
         leave_room(message["room"])
         session["receive_count"] = session.get("receive_count", 0) + 1
         emit("my_response", {"data": "In rooms: " + ", ".join(rooms()), "count": session["receive_count"]})
 
-    def on_close_room(self, message):
+    def on_close_room(self, message: str):
         session["receive_count"] = session.get("receive_count", 0) + 1
         emit(
             "my_response",

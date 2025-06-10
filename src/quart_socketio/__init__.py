@@ -1,5 +1,6 @@
 from __future__ import annotations  # noqa: D104
 
+import logging
 import sys
 import traceback
 from functools import wraps
@@ -666,6 +667,11 @@ class SocketIO:
             else:
                 port = 5000
 
+        config = kwargs.get("log_config")
+        logging.config.dictConfig(config)
+        loggers: dict[str, Any] = config.get("loggers")
+        logger = logging.getLogger(list(loggers.keys())[0]) if loggers else None
+
         debug: bool = kwargs.pop("debug", app.debug)
         ssl: bool = kwargs.pop("ssl", False)  # noqa: F841
         addr_format = "%s://%s:%d" if ":" not in host else "%s://[%s]:%d"
@@ -683,7 +689,7 @@ class SocketIO:
         process_id = getpid()
         message = "Started server process [%d]"
         color_message = "Started server process [" + click.style("%d", fg="cyan") + "]"
-        app.logger.info(message, process_id, extra={"color_message": color_message})
+        logger.info(message, process_id, extra={"color_message": color_message})
 
         if extra_files:
             reloader_options["extra_files"] = extra_files
@@ -696,7 +702,7 @@ class SocketIO:
             f"Quart-SocketIO running on {click.style(addr_format, bold=True)}",
             f"\n{click.style('(Press CTRL+C to quit)', fg='yellow')}",
         ))
-        app.logger.info(
+        logger.info(
             message,
             protocol_name,
             host,
@@ -772,7 +778,7 @@ class SocketIO:
 
         message = "Finished server process [%d]"
         color_message = "Finished server process [" + click.style("%d", fg="cyan") + "]"
-        app.logger.info(message, process_id, extra={"color_message": color_message})
+        logger.info(message, process_id, extra={"color_message": color_message})
 
     # async def stop(self) -> None:
     #     """Stop a running SocketIO web server.
