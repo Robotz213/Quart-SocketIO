@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 import socketio
 from quart import Quart
 
-from quart_socketio._types import CustomJsonClass
+from quart_socketio._types import ASyncServerType, CustomJsonClass
 
 
 @dataclass
@@ -14,12 +14,14 @@ class Config:
     """Configuration for the Quart-SocketIO application."""
 
     app: Quart = None
+    debug: bool = False
     allow_unsafe_werkzeug: bool = False
     use_reloader: bool = False
     extra_files: Optional[List[str]] = None
     reloader_options: Dict[str, Any] = {}
     server_options: Dict[str, Any] = None
     launch_mode: str = "uvicorn"
+    server: ASyncServerType = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a dictionary with the configuration parameters."""
@@ -30,6 +32,12 @@ class Config:
         }
 
         return kw
+
+    def update(self, **kwargs: Any) -> None:
+        """Update the configuration with the provided keyword arguments."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
 
 
 @dataclass
@@ -151,3 +159,35 @@ class AsyncSocketIOConfig:
         }
 
         return kw
+
+    def update(self, **kwargs: Any) -> None:
+        """Update the configuration with the provided keyword arguments."""
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get a configuration value by key."""
+        return getattr(self, key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        """Get a configuration value by key."""
+        return getattr(self, key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Set a configuration value by key."""
+        setattr(self, key, value)
+
+    def __delitem__(self, key: str) -> None:
+        """Delete a configuration value by key."""
+        if hasattr(self, key):
+            delattr(self, key)
+        else:
+            raise KeyError(f"Configuration key '{key}' does not exist.")
+
+    def pop(self, key: str, default: Any = None) -> Any:
+        """Remove a configuration value by key and return it."""
+        if hasattr(self, key):
+            value = getattr(self, key)
+            delattr(self, key)
+            return value
+        return default

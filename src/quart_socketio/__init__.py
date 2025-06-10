@@ -167,6 +167,42 @@ class SocketIO(Controller):
             self.sockio_mw = QuartSocketIOMiddleware(self.server, app, socketio_path=resource)
             app.asgi_app = self.sockio_mw
 
+    async def run(self, **kwargs: Union[str, bool, float, dict, None]) -> None:
+        self.config.update(kwargs)
+        self.server_options = self.server_options.update(**kwargs)
+
+        app = self.config.app
+
+        if not app:
+            raise ValueError("Quart application instance is required to run the server.")
+
+        if self.config.extra_files:
+            self.config.reloader_options["extra_files"] = self.config.extra_files
+
+        async_mode = kwargs.get("launch_mode", self.launch_mode)
+
+        app.debug = self.config.debug
+
+        await self.update_socketio_middleware(app)
+
+        if async_mode not in ["uvicorn", "hypercorn", "threading"]:
+            raise ValueError(
+                f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn', 'hypercorn' and 'threading'."
+            )
+
+        if async_mode == "uvicorn":
+            from quart_socketio._uvicorn import run_uvicorn
+
+            await run_uvicorn(**self.config.to_dict())
+
+        elif async_mode == "hypercorn":
+            from quart_socketio._hypercorn import run_hypercorn
+
+            await run_hypercorn(**self.config.to_dict())
+
+        elif self.server.eio.async_mode == "threading":
+            await self.threading_mode()
+
     async def register_namespace(self, namespace_handler: Namespace) -> None:
         """Register a namespace handler object.
 
