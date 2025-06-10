@@ -63,7 +63,7 @@ class Controller:
         if app is not None or "message_queue" in kwargs:
             self.init_app(app=app, **kwargs)
 
-    def init_app(
+    async def init_app(
         self,
         app: Quart,
         config: Config = None,
@@ -85,9 +85,12 @@ class Controller:
             if socket_config and not isinstance(socket_config, AsyncSocketIOConfig):
                 raise TypeError("socket_config must be an instance of AsyncSocketIOConfig")
             self.server_options = socket_config or kwargs.pop("server_options", AsyncSocketIOConfig(**kwargs))
-        app = self.config.app or app
 
-        self.server = socketio.AsyncServer(**self.server_options)
+        self.config.app = app
+        self.config.update(**kwargs)
+        self.server_options.update(**kwargs)
+
+        self.server = socketio.AsyncServer(**self.server_options.to_dict())
         for handler in self.config.handlers:
             self.server.on(handler[0], handler[1], namespace=handler[2])
         for namespace_handler in self.config.namespace_handlers:
@@ -101,17 +104,17 @@ class Controller:
                 app.extensions = {}  # pragma: no cover
 
             if "client_manager" not in kwargs:
-                self.client_manager(app)
+                await self.client_manager(app)
 
             if self.server_options.json and self.server_options.json == quart_json:
-                self.json_setting(app)
+                await self.json_setting(app)
 
             self.sockio_mw = QuartSocketIOMiddleware(self.server, app, socketio_path=self.server_options.socketio_path)
             app.asgi_app = self.sockio_mw
             app.extensions["socketio"] = self
 
-    async def run(self, **kwargs: Union[str, bool, float, dict, None]) -> None:
-        self.config.update(kwargs)
+    async def run(self, app: Quart = None, **kwargs: Union[str, bool, float, dict, None]) -> None:
+        self.config.update(**kwargs)
         self.server_options = self.server_options.update(**kwargs)
 
         app = self.config.app
@@ -147,7 +150,7 @@ class Controller:
 
     async def client_manager(self, app: Quart) -> None:
         url = self.server_options.message_queue
-        channel: str = self.server_options.pop("channel", "quart-socketio")
+        channel: str = self.server_options.channel
         write_only: bool = app is None
         if url:
             queue_class = socketio.KombuManager

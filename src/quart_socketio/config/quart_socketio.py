@@ -13,6 +13,8 @@ class Config:
 
     handlers: List[Tuple[str, Callable[..., Any], str]] = []
     app: Quart = None
+    host: str = "localhost"
+    port: int = 5000
     debug: bool = False
     allow_unsafe_werkzeug: bool = False
     use_reloader: bool = False
@@ -25,6 +27,8 @@ class Config:
     exception_handlers: Dict[str, TExceptionHandler] = {}
     default_exception_handler: TExceptionHandler = None
     manage_session: bool = True
+    log_config: Dict[str, Any] = {}
+    log_level: int = 20  # Default to logging.INFO
 
     def __init__(self, app: Quart = None, **kw: Any) -> None:
         """Initialize the configuration with the Quart application and additional parameters."""
@@ -34,7 +38,8 @@ class Config:
     def to_dict(self) -> Dict[str, Any]:
         """Return a dictionary with the configuration parameters."""
         kw = {item: getattr(self, item) for item in dir(Config) if not item.startswith("_") and item != "to_dict"}
-
+        if self.app:
+            kw["app"] = self.app
         return kw
 
     def update(self, **kwargs: Any) -> None:

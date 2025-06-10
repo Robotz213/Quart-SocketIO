@@ -1,6 +1,6 @@
 [project]
 name = "Quart-SocketIO"
-version = "1.0.2.post8.dev0"
+version = "1.0.2.post8.dev1"
 authors = [
     { name = "Nicholas Silva", email = "nicholas@robotz.dev" },
     { name = "Miguel Grinberg", email = "miguel.grinberg@gmail.com" },
