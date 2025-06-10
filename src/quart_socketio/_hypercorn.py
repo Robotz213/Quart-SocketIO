@@ -18,7 +18,7 @@ def run_hypercorn(**kwargs: Any) -> None:
     config = Config()
 
     # Set default values for configuration
-    config.bind = kwargs.pop("bind", [f"{kwargs.get('host', '0.0.0.0')}:{kwargs.get('port', 5000)}"])  # noqa: S104
+    config.bind = kwargs.pop("bind", [f"{kwargs.get('host', '0.0.0.0')}:{kwargs.get('port', 7000)}"])  # noqa: S104
     config.use_reloader = kwargs.pop("use_reloader", False)
     config.debug = kwargs.pop("debug", False)
 

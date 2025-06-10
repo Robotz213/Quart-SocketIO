@@ -667,6 +667,10 @@ class SocketIO:
         use_reloader: bool = kwargs.pop("use_reloader", debug)  # noqa: F841
         extra_files: Optional[List[str]] = kwargs.pop("extra_files", None)
         reloader_options: Dict[str, Any] = kwargs.pop("reloader_options", {})
+
+        kw = {"app": app, "host": host, "port": port, "debug": debug, "use_reloader": use_reloader}
+        kw.update(kwargs)  # add any additional kwargs for hypercorn
+
         if extra_files:
             reloader_options["extra_files"] = extra_files
 
@@ -677,12 +681,12 @@ class SocketIO:
         if async_mode == "uvicorn":
             from quart_socketio._uvicorn import run_uvicorn
 
-            await run_uvicorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
+            await run_uvicorn(**kw)
 
         elif async_mode == "hypercorn":
             from quart_socketio._hypercorn import run_hypercorn
 
-            await run_hypercorn(app=app, host=host, port=port, debug=debug, use_reloader=use_reloader)
+            await run_hypercorn(**kw)
 
     # async def stop(self) -> None:
     #     """Stop a running SocketIO web server.

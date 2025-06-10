@@ -21,7 +21,8 @@ async def run_uvicorn(**kwargs: Any) -> uvicorn.Server:
     log_config = kwargs.pop("log_config", None)
     log_level = kwargs.pop("log_level", "info")
     host = kwargs.pop("host", "0.0.0.0")  # noqa: S104
+    port = kwargs.pop("port", 7000)
 
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=7000, log_level=log_level, log_config=log_config))
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level=log_level, log_config=log_config))
 
     return await server.serve()
