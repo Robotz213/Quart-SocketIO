@@ -1,56 +1,43 @@
-Flask-SocketIO
-==============
+# Quart-SocketIO
 
-[![Build status](https://github.com/miguelgrinberg/flask-socketio/workflows/build/badge.svg)](https://github.com/miguelgrinberg/Flask-SocketIO/actions) [![codecov](https://codecov.io/gh/miguelgrinberg/flask-socketio/branch/main/graph/badge.svg)](https://codecov.io/gh/miguelgrinberg/flask-socketio)
+[![Build status](https://github.com/seu-usuario/quart-socketio/workflows/build/badge.svg)](https://github.com/seu-usuario/quart-socketio/actions)
 
-Socket.IO integration for Flask applications.
+Socket.IO integration for Quart applications.
 
-Sponsors
---------
+> **Note:** This project is a fork of [Flask-SocketIO](https://github.com/miguelgrinberg/Flask-SocketIO), adapted to work with the [Quart](https://pgjones.gitlab.io/quart/) framework.
 
-The following organizations are funding this project:
+## Installation
 
-![Socket.IO](https://images.opencollective.com/socketio/050e5eb/logo/64.png)<br>[Socket.IO](https://socket.io)  | [Add your company here!](https://github.com/sponsors/miguelgrinberg)|
--|-
+You can install this package using pip:
 
-Many individual sponsors also support this project through small ongoing contributions. Why not [join them](https://github.com/sponsors/miguelgrinberg)?
+    pip install quart-socketio
 
-Installation
-------------
-
-You can install this package as usual with pip:
-
-    pip install flask-socketio
-
-Example
--------
+## Example
 
 ```py
-from flask import Flask, render_template
-from flask_socketio import SocketIO, emit
-    
-app = Flask(__name__)
+from quart import Quart, render_template
+from quart_socketio import SocketIO, emit
+
+app = Quart(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app)
 
 @app.route('/')
-def index():
-    return render_template('index.html')
+async def index():
+    return await render_template('index.html')
 
 @socketio.event
-def my_event(message):
-    emit('my response', {'data': 'got it!'})
+async def my_event(message):
+    await emit('my response', {'data': 'got it!'})
 
 if __name__ == '__main__':
     socketio.run(app)
 ```
 
-Resources
----------
+## Resources
 
-- [Tutorial](http://blog.miguelgrinberg.com/post/easy-websockets-with-flask-and-gevent)
-- [Documentation](http://flask-socketio.readthedocs.io/en/latest/)
-- [PyPI](https://pypi.python.org/pypi/Flask-SocketIO)
-- [Change Log](https://github.com/miguelgrinberg/Flask-SocketIO/blob/main/CHANGES.md)
-- Questions? See the [questions](https://stackoverflow.com/questions/tagged/flask-socketio) others have asked on Stack Overflow, or [ask](https://stackoverflow.com/questions/ask?tags=python+flask-socketio+python-socketio) your own question.
-
+- [Quart Documentation](https://pgjones.gitlab.io/quart/)
+- [Quart-SocketIO Documentation](https://github.com/seu-usuario/quart-socketio)
+- [PyPI](https://pypi.python.org/pypi/quart-socketio)
+- [Change Log](https://github.com/seu-usuario/quart-socketio/blob/main/CHANGES.md)
+- Questions? See [existing questions](https://stackoverflow.com/questions/tagged/quart-socketio) on Stack Overflow, or [ask your own](https://stackoverflow.com/questions/ask?tags=python+quart-socketio+python-socketio).
