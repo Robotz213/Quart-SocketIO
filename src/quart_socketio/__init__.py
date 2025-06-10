@@ -137,7 +137,7 @@ class SocketIO(Controller):
 
         namespace_handler._set_server(self)
         self.server.register_namespace(namespace_handler)
-        self.namespace_handlers.append(namespace_handler)
+        self.config.namespace_handlers.append(namespace_handler)
 
     async def unregister_namespace(self, namespace_handler: Namespace) -> None:
         """Unregister a namespace handler object.
@@ -152,7 +152,7 @@ class SocketIO(Controller):
             raise RuntimeError("SocketIO server is not initialized")
         namespace_handler._set_server(None)
         self.server.unregister_namespace(namespace_handler)
-        self.namespace_handlers.remove(namespace_handler)
+        self.config.namespace_handlers.remove(namespace_handler)
 
     def on(
         self, message: Union[str, int, bool], namespace: Optional[Union[str, int, bool]] = None
@@ -322,7 +322,7 @@ class SocketIO(Controller):
         if self.server:
             self.server.register_namespace(namespace_handler)
         else:
-            self.namespace_handlers.append(namespace_handler)
+            self.config.namespace_handlers.append(namespace_handler)
 
     async def emit(self, event: str, *args: Any, **kwargs: Any) -> None:
         """Emit a server generated SocketIO event.
