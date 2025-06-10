@@ -1,10 +1,11 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import engineio
 import socketio
 
-from quart_socketio.config.python_socketio import AsyncSocketIOConfig
-from quart_socketio.config.quart_socketio import Config
+if TYPE_CHECKING:
+    from quart_socketio.config.python_socketio import AsyncSocketIOConfig
+    from quart_socketio.config.quart_socketio import Config
 
 TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
 TFunction = TypeVar("TFunction", bound=Callable[..., Any])
