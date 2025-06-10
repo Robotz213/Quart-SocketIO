@@ -1,11 +1,11 @@
 import logging  # noqa: D100
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 from quart_socketio._types import CustomJsonClass, TQueueClasses
 
 
-@dataclass
+@dataclass(match_args=False, eq=False, init=False)
 class AsyncSocketIOConfig:
     """Configuration for the Quart-SocketIO server.
 
@@ -102,7 +102,7 @@ class AsyncSocketIOConfig:
     json: CustomJsonClass = None
     async_handlers: bool = True
     always_connect: bool = False
-    namespaces: Union[str, List[str]] = ["/"]
+    namespaces: Union[str, List[str]] = "*"
     async_mode: Optional[str] = "asgi"
     ping_interval: Union[int, tuple] = 25
     ping_timeout: int = 20
@@ -114,10 +114,14 @@ class AsyncSocketIOConfig:
     cors_allowed_origins: Union[str, List[str]] = "*"
     cors_credentials: bool = True
     monitor_clients: bool = True
-    transports: List[str] = ["polling", "websocket"]
+    transports: List[str] = field(default_factory=lambda: ["polling", "websocket"])
     engineio_logger: Union[bool, logging.Logger] = False
     message_queue: Optional[str] = None
     channel: str = "quart-socketio"
+
+    def __init__(self, **kw: Any) -> None:
+        """Initialize the configuration with the provided keyword arguments."""
+        self.update(**kw)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a dictionary with the configuration parameters."""
@@ -131,5 +135,6 @@ class AsyncSocketIOConfig:
 
     def update(self, **kwargs: Any) -> None:
         """Update the configuration with the provided keyword arguments."""
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        for item in dir(AsyncSocketIOConfig):
+            if not item.startswith("_") and item != "to_dict":
+                setattr(self, item, kwargs.get(item, getattr(self, item, None)))
