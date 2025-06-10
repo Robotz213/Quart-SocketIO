@@ -691,8 +691,11 @@ class SocketIO:
         async_mode = kwargs.get("launch_mode", self.launch_mode)
 
         protocol_name = "https" if ssl else "http"
-        message = f"Quart-SockeIO running on {addr_format} (Press CTRL+C to quit)"
-        color_message = "Quart-SocketIO running on " + click.style(addr_format, bold=True) + " (Press CTRL+C to quit)"
+        message = f"Quart-SocketIO running on {addr_format} \n (Press CTRL+C to quit)"
+        color_message = "".join((
+            f"Quart-SocketIO running on {click.style(addr_format, bold=True)}",
+            f"\n{click.style('(Press CTRL+C to quit)', fg='yellow')}",
+        ))
         app.logger.info(
             message,
             protocol_name,
