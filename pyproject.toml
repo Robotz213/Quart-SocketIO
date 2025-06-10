@@ -25,8 +25,8 @@ file = "README.md"
 content-type = "text/markdown"
 
 [project.urls]
-Homepage = "https://github.com/miguelgrinberg/flask-socketio"
-"Bug Tracker" = "https://github.com/miguelgrinberg/flask-socketio/issues"
+Homepage = "https://github.com/Robotz213/Quart-SocketIO"
+"Bug Tracker" = "https://github.com/Robotz213/Quart-SocketIO/issues"
 
 [project.optional-dependencies]
 docs = ["sphinx"]
