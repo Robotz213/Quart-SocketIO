@@ -668,11 +668,10 @@ class SocketIO:
 
         debug: bool = kwargs.pop("debug", app.debug)
         ssl: bool = kwargs.pop("ssl", False)  # noqa: F841
-        if ":" in host:
-            # It's an IPv6 address.
-            addr_format = "%s://[%s]:%d"
+        addr_format = "%s://%s:%d" if ":" not in host else "%s://[%s]:%d"
 
         log_output: bool = kwargs.pop("log_output", debug)  # noqa: F841
+
         allow_unsafe_werkzeug = kwargs.pop("allow_unsafe_werkzeug", False)
         use_reloader: bool = kwargs.pop("use_reloader", debug)  # noqa: F841
         extra_files: Optional[List[str]] = kwargs.pop("extra_files", None)
