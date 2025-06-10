@@ -8,7 +8,7 @@ from functools import wraps
 from os import getpid
 from typing import Any, AnyStr, Callable, Dict, List, Optional, Union
 
-import click
+import click  # noqa: F401
 import quart
 import socketio
 from quart import Quart, Websocket, has_request_context, session
@@ -676,13 +676,14 @@ class SocketIO:
             loggers: dict[str, Any] = config.get("loggers")
             logger_name = list(loggers.keys())[0] if loggers else None
 
-        logger = logging.getLogger(logger_name)
+        logger = logging.getLogger(logger_name)  # noqa: F841
 
         debug: bool = kwargs.pop("debug", app.debug)
-        ssl: bool = kwargs.pop("ssl", False)  # noqa: F841
-        addr_format = "%s://%s:%d" if ":" not in host else "%s://[%s]:%d"
 
+        ssl: bool = kwargs.pop("ssl", False)  # noqa: F841
+        addr_format = "%s://%s:%d" if ":" not in host else "%s://[%s]:%d"  # noqa: F841
         log_output: bool = kwargs.pop("log_output", debug)  # noqa: F841
+        process_id = getpid()  # noqa: F841
 
         allow_unsafe_werkzeug = kwargs.pop("allow_unsafe_werkzeug", False)
         use_reloader: bool = kwargs.pop("use_reloader", debug)  # noqa: F841
@@ -692,29 +693,31 @@ class SocketIO:
         kw = {"app": app, "host": host, "port": port, "debug": debug, "use_reloader": use_reloader}
         kw.update(kwargs)  # add any additional kwargs for hypercorn
 
-        process_id = getpid()
-        message = "Started server process [%d]"
-        color_message = "Started server process [" + click.style("%d", fg="cyan") + "]"
-        logger.info(message, process_id, extra={"color_message": color_message})
-
         if extra_files:
             reloader_options["extra_files"] = extra_files
 
         async_mode = kwargs.get("launch_mode", self.launch_mode)
 
-        protocol_name = "https" if ssl else "http"
-        message = f"Quart-SocketIO running on {addr_format} \n (Press CTRL+C to quit)"
-        color_message = "".join((
-            f"Quart-SocketIO running on {click.style(addr_format, bold=True)}",
-            f"\n{click.style('(Press CTRL+C to quit)', fg='yellow')}",
-        ))
-        logger.info(
-            message,
-            protocol_name,
-            host,
-            port,
-            extra={"color_message": color_message},
-        )
+        # == Disabled unnecessary logging == #
+        # message = "Started server process [%d]"
+        # color_message = "Started server process [" + click.style("%d", fg="cyan") + "]"
+        # logger.info(message, process_id, extra={"color_message": color_message})
+
+        # == Disabled unnecessary logging == #
+        # protocol_name = "https" if ssl else "http"
+        # message = f"Quart-SocketIO running on {addr_format} \n (Press CTRL+C to quit)"
+        # color_message = "".join((
+        #     f"Quart-SocketIO running on {click.style(addr_format, bold=True)}",
+        #     f"\n{click.style('(Press CTRL+C to quit)', fg='yellow')}",
+        # ))
+        # logger.info(
+        #     message,
+        #     protocol_name,
+        #     host,
+        #     port,
+        #     extra={"color_message": color_message},
+        # )
+
         app.debug = debug
         if app.debug and self.server.eio.async_mode != "threading":
             # put the debug middleware between the SocketIO middleware
@@ -741,7 +744,9 @@ class SocketIO:
             self.sockio_mw.wsgi_app = DebuggedApplication(self.sockio_mw.wsgi_app, evalex=True)
 
         if async_mode not in ["uvicorn", "hypercorn", "threading"]:
-            raise ValueError(f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn' and 'hypercorn'.")
+            raise ValueError(
+                f"Invalid async_mode '{async_mode}'. Supported modes are 'uvicorn', 'hypercorn' and 'threading'."
+            )
 
         if async_mode == "uvicorn":
             from quart_socketio._uvicorn import run_uvicorn
@@ -782,9 +787,11 @@ class SocketIO:
                     )
             app.run(host=host, port=port, threaded=True, use_reloader=use_reloader, **reloader_options, **kwargs)
 
-        message = "Finished server process [%d]"
-        color_message = "Finished server process [" + click.style("%d", fg="cyan") + "]"
-        logger.info(message, process_id, extra={"color_message": color_message})
+        # == Disabled unnecessary logging == #
+        # message = "Finished server process [%d]"
+        # color_message = "Finished server process [" + click.style("%d", fg="cyan") + "]"
+        # logger.info(message, process_id, extra={"color_message": color_message})
+        # == Disabled unnecessary logging == #
 
     # async def stop(self) -> None:
     #     """Stop a running SocketIO web server.
