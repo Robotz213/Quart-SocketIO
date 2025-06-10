@@ -3,7 +3,8 @@ from typing import Any, Callable, List, Literal, Optional, Tuple, TypeVar, Union
 import engineio
 import socketio
 
-from quart_socketio.config import AsyncSocketIOConfig, Config
+from quart_socketio.config.python_socketio import AsyncSocketIOConfig
+from quart_socketio.config.quart_socketio import Configimport AsyncSocketIOConfig, Config
 
 TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
 TFunction = TypeVar("TFunction", bound=Callable[..., Any])

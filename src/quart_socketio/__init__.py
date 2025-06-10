@@ -52,7 +52,7 @@ class SocketIO(Controller):
     rooms, namespaces, background tasks, and multi-process setups via message queues.
 
     Arguments:
-        app (Optional[Quart]): The Quart application instance. If not provided, call `init_app(app)` later.
+        app (Optional[Quart]): The Quart application instance.
         manage_session (bool, optional): If True, manages user sessions for Socket.IO events separately.
             Set to False to use Quart's session management, which is recommended for server-side sessions.
         message_queue (str, optional): URL for a message queue (e.g., Redis, Kafka, ZMQ, Kombu) to enable
