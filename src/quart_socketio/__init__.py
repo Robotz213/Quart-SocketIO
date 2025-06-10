@@ -1,6 +1,7 @@
 from __future__ import annotations  # noqa: D104
 
 import logging
+import logging.config
 import sys
 import traceback
 from functools import wraps
@@ -667,10 +668,15 @@ class SocketIO:
             else:
                 port = 5000
 
+        loggers: dict[str, Any] = {}
+        logger_name = None
         config = kwargs.get("log_config")
-        logging.config.dictConfig(config)
-        loggers: dict[str, Any] = config.get("loggers")
-        logger = logging.getLogger(list(loggers.keys())[0]) if loggers else None
+        if config:
+            logging.config.dictConfig(config)
+            loggers: dict[str, Any] = config.get("loggers")
+            logger_name = list(loggers.keys())[0] if loggers else None
+
+        logger = logging.getLogger(logger_name)
 
         debug: bool = kwargs.pop("debug", app.debug)
         ssl: bool = kwargs.pop("ssl", False)  # noqa: F841
