@@ -198,9 +198,9 @@ class SocketIO(Controller):
                 return await handler(**kwrg)  # noqa: SLF001
 
         elif namespace_handler:
-            return await namespace_handler.trigger_event(f"on_{event}", *args, **kwargs)
+            return await namespace_handler.trigger_event(event, *args, **kwargs)
 
-        return self.not_handled
+        return self.server.not_handled
 
     async def _handle_event(
         self,
@@ -616,3 +616,8 @@ class SocketIO(Controller):
 
     async def send_push_promise(self, data: str, headers: Headers) -> None:
         """Empty."""
+        # This method is not used in the current implementation.
+        # It is a placeholder for future use if push promises are implemented.
+        # The headers parameter is expected to be a werkzeug Headers object.
+        # Currently, it does nothing and can be safely ignored.
+        pass  # noqa: PIE790
