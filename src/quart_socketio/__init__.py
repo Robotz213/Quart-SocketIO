@@ -615,6 +615,9 @@ class SocketIO(Controller):
         if not environ:
             # we don't have record of this client, ignore this event
             return "", 400
+
+        if not isinstance(environ, dict):
+            environ = self.server.environ[sid]
         app: Quart = self.sockio_mw.quart_app
 
         # Construct the request object
