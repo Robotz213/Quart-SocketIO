@@ -336,10 +336,12 @@ class Controller:
             resp = app.response_class()
             app.session_interface.save_session(app, session_obj, resp)
 
-    async def make_request(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs: AnyStr) -> Request:
+    async def make_request(self, **kwargs: AnyStr) -> Request:
         kwargs = kwargs or {}
         data = kwargs.get("data", {})
+
         try:
+            environ = kwargs.get("environ", self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"]))
             req = Request(  # noqa: F841
                 method=environ["REQUEST_METHOD"],
                 scheme=environ["asgi.scope"].get("scheme", "http"),
@@ -374,28 +376,32 @@ class Controller:
             body.append(parsejson)
             req.body = body
 
-        except Exception as e:
-            print(e)  # noqa: T201
+        except Exception:
+            raise
 
         return req
 
-    async def make_websocket(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs: AnyStr) -> Websocket:
-        websock = Websocket(
-            path=environ["PATH_INFO"],
-            query_string=environ["asgi.scope"]["query_string"],
-            scheme=environ["asgi.scope"].get("scheme", "http"),
-            headers=await self.load_headers(environ),
-            root_path=environ["asgi.scope"].get("root_path", ""),
-            http_version=environ["SERVER_PROTOCOL"],
-            receive=environ["asgi.receive"],
-            send=environ["asgi.send"],
-            subprotocols=environ["asgi.scope"].get("subprotocols", []),
-            accept=environ["asgi.scope"].get("accept"),
-            close=environ["asgi.scope"].get("close"),
-            scope=environ["asgi.scope"],
-        )
-
-        websock.sid = kwargs.get("sid", None)
+    async def make_websocket(self, **kwargs: AnyStr) -> Request:
+        kwargs = kwargs or {}
+        try:
+            environ = kwargs.get("environ", self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"]))
+            websock = Websocket(
+                path=environ["PATH_INFO"],
+                query_string=environ["asgi.scope"]["query_string"],
+                scheme=environ["asgi.scope"].get("scheme", "http"),
+                headers=await self.load_headers(environ),
+                root_path=environ["asgi.scope"].get("root_path", ""),
+                http_version=environ["SERVER_PROTOCOL"],
+                receive=environ["asgi.receive"],
+                send=environ["asgi.send"],
+                subprotocols=environ["asgi.scope"].get("subprotocols", []),
+                accept=environ["asgi.scope"].get("accept"),
+                close=environ["asgi.scope"].get("close"),
+                scope=environ["asgi.scope"],
+            )
+            websock.sid = kwargs.get("sid", None)
+        except Exception:
+            raise
 
         return websock
 
