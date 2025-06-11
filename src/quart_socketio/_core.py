@@ -344,18 +344,8 @@ class Controller:
         data = kwargs.get("data", {})
         try:
             environ = self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"])
-            req = Request(  # noqa: F841
-                environ=environ
-                # method=environ["REQUEST_METHOD"],
-                # scheme=environ["asgi.scope"].get("scheme", "http"),
-                # path=environ["PATH_INFO"],
-                # query_string=environ["asgi.scope"]["query_string"],
-                # headers=await self.load_headers(environ),
-                # root_path=environ["asgi.scope"].get("root_path", ""),
-                # http_version=environ["SERVER_PROTOCOL"],
-                # scope=environ["asgi.scope"],
-                # send_push_promise=self.send_push_promise,
-            )
+            kwargs["environ"] = environ
+            req = Request(**kwargs)
 
             req.sid = kwargs.get("sid", None)
 
