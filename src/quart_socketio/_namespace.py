@@ -63,7 +63,8 @@ class Namespace(BaseNamespace):
 
                 if isinstance(item, dict):
                     kwrg.update(item)
-                elif getattr(self.socketio.reason, item.replace(" ", "_").upper(), None) is not None:
+
+                elif getattr(self.socketio.reason, item.replace(" ", "_").upper(), None):
                     kwrg.update({"reason": item})
 
         try:

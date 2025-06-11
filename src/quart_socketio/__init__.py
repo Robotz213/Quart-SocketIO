@@ -1,5 +1,7 @@
 from __future__ import annotations  # noqa: D104
 
+import io  # noqa: F401
+import json  # noqa: F401
 import traceback
 from functools import wraps
 from typing import Any, AnyStr, Callable, Optional, Tuple, Union
@@ -9,6 +11,7 @@ import quart
 import socketio
 from quart import Quart, Request, Websocket, has_request_context, session
 from quart import websocket as request
+from quart.datastructures import FileStorage  # noqa: F401
 from quart.wrappers import Body  # noqa: F401
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
@@ -432,7 +435,7 @@ class SocketIO(Controller):
     async def send(
         self,
         data: Any,
-        json: bool = False,
+        json: bool = False,  # noqa: F811
         namespace: Optional[str] = None,
         to: Optional[str] = None,
         callback: Optional[Callable[..., Any]] = None,
@@ -608,14 +611,67 @@ class SocketIO(Controller):
         namespace: str = None,
         sid: str = None,
         environ: dict[str, Any] = None,
-        data: Optional[dict[str, Any]] = None,
         reason: Optional[str] = None,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
         app: Quart = self.sockio_mw.quart_app
 
-        # Construct the request object
+        # data = kwargs.get("data", {})
+        # json_data = kwargs.get("json")
+        # files: dict[str, AnyStr] | list[dict[str, AnyStr]] = kwargs.get("files", kwargs.get("file", {}))
+
+        # to_bytes = {}
+        # if data:
+        #     to_bytes["data"] = data
+
+        # if json_data:
+        #     to_bytes["json"] = json_data
+        # if files:
+        #     file_list = list(files)
+        #     if isinstance(files, list):
+        #         file_list.clear()
+
+        #         for file in files:
+        #             for key, value in list(file.items()):
+        #                 # file_buffer = io.BytesIO(value)
+        #                 if isinstance(value, bytes):
+        #                     value = value.decode("utf-8")
+
+        #                 file_list.append({key: value})
+        #     else:
+        #         file_list = []
+        #         for key, value in list(files.items()):
+        #             # file_buffer = io.BytesIO(value)
+
+        #             if isinstance(value, bytes):
+        #                 value = value.decode("utf-8")
+
+        #             file_list.append({key: value})
+
+        #     to_bytes["files"] = file_list
+
+        # dumped_data = json.dumps(to_bytes).encode("utf-8")
+        # content_length = io.BytesIO(dumped_data).tell()
+
+        # if content_length == 0:
+        #     content_length = 512
+
+        # body = Body(content_length, content_length)
+        req2 = Request(  # noqa: F841
+            method=environ["REQUEST_METHOD"],
+            scheme=environ["asgi.scope"].get("scheme", "http"),
+            path=environ["PATH_INFO"],
+            query_string=environ["asgi.scope"]["query_string"],
+            headers=Headers(environ["asgi.scope"]["headers"]),
+            root_path=environ["asgi.scope"].get("root_path", ""),
+            http_version=environ["SERVER_PROTOCOL"],
+            scope=environ["asgi.scope"],
+            send_push_promise=self.send_push_promise,
+        )
+
+        # req2.body = body
+
         req = Websocket(
             path=environ["PATH_INFO"],
             query_string=environ["asgi.scope"]["query_string"],
@@ -631,17 +687,6 @@ class SocketIO(Controller):
             scope=environ["asgi.scope"],
         )
 
-        req2 = Request(  # noqa: F841
-            method=environ["REQUEST_METHOD"],
-            scheme=environ["asgi.scope"].get("scheme", "http"),
-            path=environ["PATH_INFO"],
-            query_string=environ["asgi.scope"]["query_string"],
-            headers=Headers(environ["asgi.scope"]["headers"]),
-            root_path=environ["asgi.scope"].get("root_path", ""),
-            http_version=environ["SERVER_PROTOCOL"],
-            scope=environ["asgi.scope"],
-            send_push_promise=self.send_push_promise,
-        )
         async with app.request_context(req2):
             async with app.websocket_context(req):
                 session_obj: _ManagedSession | Any = (
@@ -659,7 +704,7 @@ class SocketIO(Controller):
 
                 request.sid = sid
                 request.namespace = namespace
-                request.data = data or {}
+                request.data = {}
 
                 if not self.config.manage_session:
                     # when Quart is managing the user session, it needs to save it
