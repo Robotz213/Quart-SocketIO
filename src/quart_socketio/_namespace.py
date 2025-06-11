@@ -58,9 +58,12 @@ class Namespace(BaseNamespace):
 
         if len(args) > 0:
             for item in args:
+                if isinstance(item, dict) and item == environ:
+                    continue
+
                 if isinstance(item, dict):
-                    kwrg.update({"data": item})
-                elif getattr(self.socketio.reason, item, None) is not None:
+                    kwrg.update(item)
+                elif getattr(self.socketio.reason, item.replace(" ", "_").upper(), None) is not None:
                     kwrg.update({"reason": item})
 
         try:

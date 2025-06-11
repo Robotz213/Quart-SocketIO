@@ -612,7 +612,7 @@ class SocketIO(Controller):
         *args: Any,
         **kwargs: Any,
     ) -> Any:
-        app: Quart = self.config.app
+        app: Quart = self.sockio_mw.quart_app
 
         # Construct the request object
         req = Websocket(
@@ -660,23 +660,23 @@ class SocketIO(Controller):
                 request.namespace = namespace
                 request.data = data or {}
 
-                try:
-                    if event == "connect":
-                        try:
-                            ret = await handler(data=request.data)
-                        except TypeError:
-                            ret = await handler()
-                    else:
-                        ret = await handler(**request.data)
-                except SocketIOConnectionRefusedError:
-                    raise  # let this error bubble up to python-socketio
-                except Exception as e:
-                    err = "".join(traceback.format_exception(e))
-
-                    return err
                 if not self.config.manage_session:
                     # when Quart is managing the user session, it needs to save it
                     if not hasattr(session_obj, "modified") or session_obj.modified:
-                        resp = app.response_class(request.headers, status=200)
+                        resp = app.response_class()
                         app.session_interface.save_session(app, session_obj, resp)
-                return ret
+
+                try:
+                    if event == "connect" or event == "disconnect":
+                        try:
+                            return await handler(**request.data)
+                        except TypeError:
+                            return await handler()
+                    else:
+                        return await handler(**request.data)
+                except SocketIOConnectionRefusedError:
+                    raise  # let this error bubble up to python-socketio
+                except Exception as e:
+                    err = "".join(traceback.format_exception_only(e))
+                    self.config.app.logger.error(err)
+                    raise e
