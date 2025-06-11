@@ -284,10 +284,10 @@ class Controller:
             if isinstance(item2, bytes):
                 item2 = item2.decode("utf-8")
 
-            headers.add(item1.upper(), item2)
+            headers.add(item1.title(), item2)
 
         for key, value in list(environ.items()):
-            if isinstance(value, Callable):
+            if isinstance(value, Callable) or (key == "wsgi.input" or key == "asgi.input"):
                 continue
 
             header_name = key
@@ -346,7 +346,7 @@ class Controller:
         try:
             environ = self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"])
             kwargs["environ"] = environ
-            req = Request(**kwargs)
+            req = Request.setup(**kwargs)
 
             req.sid = kwargs.get("sid", None)
 
@@ -370,7 +370,7 @@ class Controller:
             body.append(parsejson)
             req.body = body
 
-        except Exception:
+        except Exception as e:  # noqa: F841
             raise
 
         return req
@@ -383,7 +383,7 @@ class Controller:
                 path=environ["PATH_INFO"],
                 query_string=environ["asgi.scope"]["query_string"],
                 scheme=environ["asgi.scope"].get("scheme", "http"),
-                headers=await self.load_headers(environ),
+                headers=self.load_headers(environ),
                 root_path=environ["asgi.scope"].get("root_path", ""),
                 http_version=environ["SERVER_PROTOCOL"],
                 receive=environ["asgi.receive"],
