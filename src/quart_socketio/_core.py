@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import TYPE_CHECKING, AnyStr, Optional, Union
+from typing import TYPE_CHECKING, Any, AnyStr, Callable, Optional, Tuple, Union
 
+import quart
 import socketio
-from quart import Quart
+from quart import Quart, Request, Websocket, session
 from quart import json as quart_json
+from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
 
 from quart_socketio._middleare import QuartSocketIOMiddleware
 from quart_socketio._types import TQueueClassMap
 from quart_socketio.config.python_socketio import AsyncSocketIOConfig
 from quart_socketio.config.quart_socketio import Config
+from quart_socketio.test_client import SocketIOTestClient
+
+from ._manager import _ManagedSession
 
 if TYPE_CHECKING:
     import uvicorn
@@ -256,6 +261,129 @@ class Controller:
         app = self.config.app
         app.run(
             **self.config.to_dict(),
+        )
+
+    async def load_headers(self, environ: dict[str, AnyStr]) -> Headers:
+        """Load headers from the ASGI scope."""
+        headers = Headers()
+
+        io_headers: list[Tuple[AnyStr, AnyStr]] = environ["asgi.scope"]["headers"]
+        for item1, item2 in io_headers:
+            if isinstance(item1, bytes):
+                item1 = item1.decode("utf-8")
+
+            if isinstance(item2, bytes):
+                item2 = item2.decode("utf-8")
+
+            headers.add(item1.upper(), item2)
+
+        for key, value in list(environ.items()):
+            header_name = key
+            if key.startswith("HTTP_"):
+                header_name = key.split("_")[-1].title()
+                if isinstance(value, bytes):
+                    value = value.decode("utf-8")
+
+            elif isinstance(value, dict) or isinstance(value, Callable):
+                continue
+
+            headers.add(header_name, value)
+
+        return headers
+
+    async def handle_session(self, environ: dict[str, str | dict[str, Any]]) -> None:
+        """Handle user sessions for Socket.IO events.
+
+        This method is called to manage user sessions when the Socket.IO server
+        is initialized with `manage_session=True`. It ensures that the session
+        is properly saved and restored during Socket.IO events.
+        :param environ: The ASGI environment dictionary.
+        """
+        app = self.config.app
+
+        session_obj: _ManagedSession | Any = (
+            environ.setdefault("saved_session", _ManagedSession(session))
+            if self.config.manage_session
+            else session._get_current_object()
+        )  # noqa: SLF001
+        ctx = (
+            quart.globals.websocket_ctx._get_current_object()
+            if hasattr(quart, "globals") and hasattr(quart.globals, "websocket_ctx")
+            else quart._websocket_ctx_stack.top
+        )  # noqa: SLF001
+        if self.config.manage_session:
+            ctx.session = session_obj
+
+        # when Quart is managing the user session, it needs to save it
+        if not hasattr(session_obj, "modified") or session_obj.modified:
+            resp = app.response_class()
+            app.session_interface.save_session(app, session_obj, resp)
+
+    async def make_request(self, environ: dict[str, str | dict[str, Any]]) -> Request:
+        return Request(  # noqa: F841
+            method=environ["REQUEST_METHOD"],
+            scheme=environ["asgi.scope"].get("scheme", "http"),
+            path=environ["PATH_INFO"],
+            query_string=environ["asgi.scope"]["query_string"],
+            headers=Headers(environ["asgi.scope"]["headers"]),
+            root_path=environ["asgi.scope"].get("root_path", ""),
+            http_version=environ["SERVER_PROTOCOL"],
+            scope=environ["asgi.scope"],
+            send_push_promise=self.send_push_promise,
+        )
+
+    async def make_websocket(self, environ: dict[str, str | dict[str, Any]]) -> Websocket:
+        return Websocket(
+            path=environ["PATH_INFO"],
+            query_string=environ["asgi.scope"]["query_string"],
+            scheme=environ["asgi.scope"].get("scheme", "http"),
+            headers=await self.load_headers(environ),
+            root_path=environ["asgi.scope"].get("root_path", ""),
+            http_version=environ["SERVER_PROTOCOL"],
+            receive=environ["asgi.receive"],
+            send=environ["asgi.send"],
+            subprotocols=environ["asgi.scope"].get("subprotocols", []),
+            accept=environ["asgi.scope"].get("accept"),
+            close=environ["asgi.scope"].get("close"),
+            scope=environ["asgi.scope"],
+        )
+
+    def test_client(
+        self,
+        app: Quart,
+        namespace: Optional[str] = None,
+        query_string: Optional[str] = None,
+        headers: Optional[dict[str, str]] = None,
+        auth: Optional[dict[str, Any]] = None,
+        quart_test_client: Any = None,
+    ) -> SocketIOTestClient:
+        """The Socket.IO test client is useful for testing a Quart-SocketIO server.
+
+        It works in a similar way to the Quart Test Client, but
+        adapted to the Socket.IO server.
+
+        :param app: The Quart application instance.
+        :param namespace: The namespace for the client. If not provided, the
+                          client connects to the server on the global
+                          namespace.
+        :param query_string: A string with custom query string arguments.
+        :param headers: A dictionary with custom HTTP headers.
+        :param auth: Optional authentication data, given as a dictionary.
+        :param quart_test_client: The instance of the Quart test client
+                                  currently in use. Passing the Quart test
+                                  client is optional, but is necessary if you
+                                  want the Quart user session and any other
+                                  cookies set in HTTP routes accessible from
+                                  Socket.IO events.
+        """
+        return SocketIOTestClient(
+            app,
+            self,
+            namespace=namespace,
+            query_string=query_string,
+            headers=headers,
+            auth=auth,
+            quart_test_client=quart_test_client,
         )
 
     # async def stop(self) -> None:

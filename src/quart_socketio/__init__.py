@@ -4,12 +4,11 @@ import io  # noqa: F401
 import json  # noqa: F401
 import traceback
 from functools import wraps
-from typing import Any, AnyStr, Callable, Optional, Tuple, Union
+from typing import Any, AnyStr, Callable, Optional, Union
 
 import click  # noqa: F401
-import quart
 import socketio
-from quart import Quart, Request, Websocket, has_request_context, session
+from quart import Quart, has_request_context
 from quart import websocket as request
 from quart.datastructures import FileStorage  # noqa: F401
 from quart.wrappers import Body  # noqa: F401
@@ -19,7 +18,6 @@ from werkzeug.datastructures.headers import Headers
 from quart_socketio._core import Controller
 from quart_socketio._types import TExceptionHandler, TFunction
 
-from ._manager import _ManagedSession
 from ._namespace import Namespace
 from ._utils import (
     call,
@@ -535,74 +533,8 @@ class SocketIO(Controller):
         """
         return self.server.sleep(seconds)
 
-    def test_client(
-        self,
-        app: Quart,
-        namespace: Optional[str] = None,
-        query_string: Optional[str] = None,
-        headers: Optional[dict[str, str]] = None,
-        auth: Optional[dict[str, Any]] = None,
-        quart_test_client: Any = None,
-    ) -> SocketIOTestClient:
-        """The Socket.IO test client is useful for testing a Quart-SocketIO server.
-
-        It works in a similar way to the Quart Test Client, but
-        adapted to the Socket.IO server.
-
-        :param app: The Quart application instance.
-        :param namespace: The namespace for the client. If not provided, the
-                          client connects to the server on the global
-                          namespace.
-        :param query_string: A string with custom query string arguments.
-        :param headers: A dictionary with custom HTTP headers.
-        :param auth: Optional authentication data, given as a dictionary.
-        :param quart_test_client: The instance of the Quart test client
-                                  currently in use. Passing the Quart test
-                                  client is optional, but is necessary if you
-                                  want the Quart user session and any other
-                                  cookies set in HTTP routes accessible from
-                                  Socket.IO events.
-        """
-        return SocketIOTestClient(
-            app,
-            self,
-            namespace=namespace,
-            query_string=query_string,
-            headers=headers,
-            auth=auth,
-            quart_test_client=quart_test_client,
-        )
-
     async def send_push_promise(self, data: str, headers: Headers) -> None:
         """Empty."""
-
-    async def load_headers(self, environ: dict[str, AnyStr]) -> Headers:
-        """Load headers from the ASGI scope."""
-        headers = Headers()
-
-        io_headers: list[Tuple[AnyStr, AnyStr]] = environ["asgi.scope"]["headers"]
-        for item1, item2 in io_headers:
-            if isinstance(item1, bytes):
-                item1 = item1.decode("utf-8")
-
-            if isinstance(item2, bytes):
-                item2 = item2.decode("utf-8")
-
-            headers.add(item1.upper(), item2)
-
-        for key, value in list(environ.items()):
-            header_name = key
-            if key.startswith("HTTP_"):
-                header_name = key.split("_")[-1].title()
-                if isinstance(value, bytes):
-                    value = value.decode("utf-8")
-
-            elif isinstance(value, dict) or isinstance(value, Callable):
-                continue
-
-            headers.add(header_name, value)
-
-        return headers
 
     async def _handle_event(
         self,
@@ -617,100 +549,14 @@ class SocketIO(Controller):
     ) -> Any:
         app: Quart = self.sockio_mw.quart_app
 
-        # data = kwargs.get("data", {})
-        # json_data = kwargs.get("json")
-        # files: dict[str, AnyStr] | list[dict[str, AnyStr]] = kwargs.get("files", kwargs.get("file", {}))
-
-        # to_bytes = {}
-        # if data:
-        #     to_bytes["data"] = data
-
-        # if json_data:
-        #     to_bytes["json"] = json_data
-        # if files:
-        #     file_list = list(files)
-        #     if isinstance(files, list):
-        #         file_list.clear()
-
-        #         for file in files:
-        #             for key, value in list(file.items()):
-        #                 # file_buffer = io.BytesIO(value)
-        #                 if isinstance(value, bytes):
-        #                     value = value.decode("utf-8")
-
-        #                 file_list.append({key: value})
-        #     else:
-        #         file_list = []
-        #         for key, value in list(files.items()):
-        #             # file_buffer = io.BytesIO(value)
-
-        #             if isinstance(value, bytes):
-        #                 value = value.decode("utf-8")
-
-        #             file_list.append({key: value})
-
-        #     to_bytes["files"] = file_list
-
-        # dumped_data = json.dumps(to_bytes).encode("utf-8")
-        # content_length = io.BytesIO(dumped_data).tell()
-
-        # if content_length == 0:
-        #     content_length = 512
-
-        # body = Body(content_length, content_length)
-        req2 = Request(  # noqa: F841
-            method=environ["REQUEST_METHOD"],
-            scheme=environ["asgi.scope"].get("scheme", "http"),
-            path=environ["PATH_INFO"],
-            query_string=environ["asgi.scope"]["query_string"],
-            headers=Headers(environ["asgi.scope"]["headers"]),
-            root_path=environ["asgi.scope"].get("root_path", ""),
-            http_version=environ["SERVER_PROTOCOL"],
-            scope=environ["asgi.scope"],
-            send_push_promise=self.send_push_promise,
-        )
-
-        # req2.body = body
-
-        req = Websocket(
-            path=environ["PATH_INFO"],
-            query_string=environ["asgi.scope"]["query_string"],
-            scheme=environ["asgi.scope"].get("scheme", "http"),
-            headers=await self.load_headers(environ),
-            root_path=environ["asgi.scope"].get("root_path", ""),
-            http_version=environ["SERVER_PROTOCOL"],
-            receive=environ["asgi.receive"],
-            send=environ["asgi.send"],
-            subprotocols=environ["asgi.scope"].get("subprotocols", []),
-            accept=environ["asgi.scope"].get("accept"),
-            close=environ["asgi.scope"].get("close"),
-            scope=environ["asgi.scope"],
-        )
-
-        async with app.request_context(req2):
-            async with app.websocket_context(req):
-                session_obj: _ManagedSession | Any = (
-                    environ.setdefault("saved_session", _ManagedSession(session))
-                    if self.config.manage_session
-                    else session._get_current_object()
-                )  # noqa: SLF001
-                ctx = (
-                    quart.globals.websocket_ctx._get_current_object()
-                    if hasattr(quart, "globals") and hasattr(quart.globals, "websocket_ctx")
-                    else quart._websocket_ctx_stack.top
-                )  # noqa: SLF001
-                if self.config.manage_session:
-                    ctx.session = session_obj
+        async with app.request_context(await self.make_request(environ)):
+            async with app.websocket_context(await self.make_websocket(environ)):
+                if not self.config.manage_session:
+                    await self.handle_session(environ)
 
                 request.sid = sid
                 request.namespace = namespace
                 request.data = {}
-
-                if not self.config.manage_session:
-                    # when Quart is managing the user session, it needs to save it
-                    if not hasattr(session_obj, "modified") or session_obj.modified:
-                        resp = app.response_class()
-                        app.session_interface.save_session(app, session_obj, resp)
 
                 try:
                     return await handler()
@@ -720,4 +566,4 @@ class SocketIO(Controller):
                 except Exception as e:
                     err = "".join(traceback.format_exception_only(e))
                     self.config.app.logger.error(err)
-                    raise e
+                    return err
