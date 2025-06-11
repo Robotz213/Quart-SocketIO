@@ -12,7 +12,7 @@ from quart import Quart, has_request_context
 from quart import websocket as request
 from quart.datastructures import FileStorage  # noqa: F401
 from quart.wrappers import Body  # noqa: F401
-from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
+from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError
 from werkzeug.datastructures.headers import Headers
 
 from quart_socketio._core import Controller
@@ -146,6 +146,7 @@ class SocketIO(Controller):
             return filter_[0][1] if len(filter_) > 0 else None
 
         handler = get_handler()
+        namespace_handler, args = self.server._get_namespace_handler(namespace, args)
 
         if handler:
             environ = args[3]
@@ -196,9 +197,8 @@ class SocketIO(Controller):
 
                 return await handler(**kwrg)  # noqa: SLF001
 
-        handler, args = self.server._get_namespace_handler(namespace, args)
-        if handler:
-            return await handler.trigger_event(event, *args)
+        elif namespace_handler:
+            return await namespace_handler.trigger_event(f"on_{event}", *args, **kwargs)
 
         return self.not_handled
 
