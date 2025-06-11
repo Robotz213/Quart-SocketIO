@@ -59,7 +59,7 @@ class Request:
             # Handle any exceptions that occur during initialization
             print(f"Error initializing QuartRequest: {e}")  # noqa: T201
 
-    def __getattribute__(self, name: str) -> Awaitable[Any] | Any:  # noqa: D105
+    def __getattr__(self, name: str) -> Awaitable[Any] | Any:  # noqa: D105
         attr = getattr(self.flask_request, name, None) or getattr(self.quart_request, name, None)
 
         if iscoroutine(attr):
