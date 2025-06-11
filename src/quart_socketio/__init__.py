@@ -2,12 +2,12 @@ from __future__ import annotations  # noqa: D104
 
 import traceback
 from functools import wraps
-from typing import Any, AnyStr, Callable, Optional, Union
+from typing import Any, AnyStr, Callable, Optional, Tuple, Union
 
 import click  # noqa: F401
 import quart
 import socketio
-from quart import Quart, Websocket, has_request_context, session
+from quart import Quart, Request, Websocket, has_request_context, session
 from quart import websocket as request
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
@@ -572,16 +572,46 @@ class SocketIO(Controller):
     async def send_push_promise(self, data: str, headers: Headers) -> None:
         """Empty."""
 
+    async def load_headers(self, environ: dict[str, AnyStr]) -> Headers:
+        """Load headers from the ASGI scope."""
+        headers = Headers()
+
+        io_headers: list[Tuple[AnyStr, AnyStr]] = environ["asgi.scope"]["headers"]
+        for item1, item2 in io_headers:
+            if isinstance(item1, bytes):
+                item1 = item1.decode("utf-8")
+
+            if isinstance(item2, bytes):
+                item2 = item2.decode("utf-8")
+
+            headers.add(item1.upper(), item2)
+
+        for key, value in list(environ.items()):
+            header_name = key
+            if key.startswith("HTTP_"):
+                header_name = key.split("_")[-1].title()
+                if isinstance(value, bytes):
+                    value = value.decode("utf-8")
+
+            elif isinstance(value, dict) or isinstance(value, Callable):
+                continue
+
+            headers.add(header_name, value)
+
+        return headers
+
     async def _handle_event(
         self,
         handler: Callable[..., Any],
-        message: Any,
-        namespace: str,
+        event: str,
+        namespace: str = None,
         sid: str = None,
+        environ: dict[str, Any] = None,
+        data: Optional[dict[str, Any]] = None,
+        reason: Optional[str] = None,
         *args: Any,
         **kwargs: Any,
     ) -> Any:
-        environ = self.server.get_environ(sid, namespace=namespace)
         if not environ:
             # we don't have record of this client, ignore this event
             return "", 400
@@ -591,8 +621,8 @@ class SocketIO(Controller):
         req = Websocket(
             path=environ["PATH_INFO"],
             query_string=environ["asgi.scope"]["query_string"],
-            scheme=environ["asgi.url_scheme"],
-            headers=Headers(environ["asgi.scope"]["headers"]),
+            scheme=environ["asgi.scope"].get("scheme", "http"),
+            headers=await self.load_headers(environ),
             root_path=environ["asgi.scope"].get("root_path", ""),
             http_version=environ["SERVER_PROTOCOL"],
             receive=environ["asgi.receive"],
@@ -603,53 +633,53 @@ class SocketIO(Controller):
             scope=environ["asgi.scope"],
         )
 
-        # req = Request(
-        #     method=environ["REQUEST_METHOD"],
-        #     scheme=environ["asgi.url_scheme"],
-        #     path=environ["PATH_INFO"],
-        #     query_string=environ["asgi.scope"]["query_string"],
-        #     headers=Headers(environ["asgi.scope"]["headers"]),
-        #     root_path=environ["asgi.scope"].get("root_path", ""),
-        #     http_version=environ["SERVER_PROTOCOL"],
-        #     scope=environ["asgi.scope"],
-        #     send_push_promise=self.send_push_promise,
-        # )
+        req2 = Request(  # noqa: F841
+            method=environ["REQUEST_METHOD"],
+            scheme=environ["asgi.scope"].get("scheme", "http"),
+            path=environ["PATH_INFO"],
+            query_string=environ["asgi.scope"]["query_string"],
+            headers=Headers(environ["asgi.scope"]["headers"]),
+            root_path=environ["asgi.scope"].get("root_path", ""),
+            http_version=environ["SERVER_PROTOCOL"],
+            scope=environ["asgi.scope"],
+            send_push_promise=self.send_push_promise,
+        )
+        async with app.request_context(req2):
+            async with app.websocket_context(req):
+                session_obj: _ManagedSession | Any = (
+                    environ.setdefault("saved_session", _ManagedSession(session))
+                    if self.config.manage_session
+                    else session._get_current_object()
+                )  # noqa: SLF001
+                ctx = (
+                    quart.globals.websocket_ctx._get_current_object()
+                    if hasattr(quart, "globals") and hasattr(quart.globals, "websocket_ctx")
+                    else quart._websocket_ctx_stack.top
+                )  # noqa: SLF001
+                if self.config.manage_session:
+                    ctx.session = session_obj
 
-        async with app.request_context(req):
-            session_obj: _ManagedSession | Any = (
-                environ.setdefault("saved_session", _ManagedSession(session))
-                if self.config.manage_session
-                else session._get_current_object()
-            )  # noqa: SLF001
-            ctx = (
-                quart.globals.request_ctx._get_current_object()
-                if hasattr(quart, "globals") and hasattr(quart.globals, "request_ctx")
-                else quart._request_ctx_stack.top
-            )  # noqa: SLF001
-            if self.config.manage_session:
-                ctx.session = session_obj
+                request.sid = sid
+                request.namespace = namespace
+                request.data = data or {}
 
-            request.sid = sid
-            request.namespace = namespace
-            request.event = {"message": message, "args": args}
-            try:
-                if message == "connect":
-                    auth = args[1] if len(args) > 1 else None
-                    try:
-                        ret = await handler(auth)
-                    except TypeError:
-                        ret = await handler()
-                else:
-                    ret = await handler(*args)
-            except SocketIOConnectionRefusedError:
-                raise  # let this error bubble up to python-socketio
-            except Exception as e:
-                err = "".join(traceback.format_exception_only(e))
+                try:
+                    if event == "connect":
+                        try:
+                            ret = await handler(data=request.data)
+                        except TypeError:
+                            ret = await handler()
+                    else:
+                        ret = await handler(*args)
+                except SocketIOConnectionRefusedError:
+                    raise  # let this error bubble up to python-socketio
+                except Exception as e:
+                    err = "".join(traceback.format_exception_only(e))
 
-                return err
-            if not self.config.manage_session:
-                # when Quart is managing the user session, it needs to save it
-                if not hasattr(session_obj, "modified") or session_obj.modified:
-                    resp = app.response_class()
-                    app.session_interface.save_session(app, session_obj, resp)
-            return ret
+                    return err
+                if not self.config.manage_session:
+                    # when Quart is managing the user session, it needs to save it
+                    if not hasattr(session_obj, "modified") or session_obj.modified:
+                        resp = app.response_class()
+                        app.session_interface.save_session(app, session_obj, resp)
+                return ret

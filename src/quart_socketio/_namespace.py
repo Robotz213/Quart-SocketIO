@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, AnyStr
 
+from flask.sessions import SessionMixin
+from socketio import AsyncServer
 from socketio import Namespace as BaseNamespace
 
 if TYPE_CHECKING:
@@ -9,18 +11,29 @@ if TYPE_CHECKING:
 
 
 class Namespace(BaseNamespace):
-    def __init__(self, namespace: str = None) -> None:
+    def __init__(self, namespace: str = None, socketio: SocketIO = None) -> None:
         super().__init__(namespace)
-        self.socketio = None
+        self.socketio = socketio
 
     def is_asyncio_based(self) -> bool:
         """Check if the namespace is asyncio-based."""
         return True
 
     def _set_server(self, socketio: SocketIO) -> None:
-        self.socketio = socketio
+        from . import SocketIO
 
-    async def trigger_event(self, event: str, *args: AnyStr | int | bool) -> Any:
+        if not self.socketio:
+            self.socketio = socketio
+
+        if isinstance(socketio, SocketIO):
+            self.server = socketio.server
+
+        elif isinstance(socketio, AsyncServer):
+            self.server = socketio
+
+    async def trigger_event(
+        self, event: str, sid: str, environ: dict, *args: AnyStr | int | bool, **kwargs: AnyStr | int | bool
+    ) -> Any:
         """Dispatch an event to the proper handler method.
 
         In the most common usage, this method is not overloaded by subclasses,
@@ -33,8 +46,24 @@ class Namespace(BaseNamespace):
             # there is no handler for this event, so we ignore it
             return
         handler = getattr(self, handler_name)
+        kwrg = kwargs.copy()
+        kwrg.update({
+            "handler": handler,
+            "event": event,
+            "namespace": self.namespace,
+            "sid": sid,
+            "environ": environ,
+        })
+
+        if len(args) > 0:
+            for item in args:
+                if isinstance(item, dict):
+                    kwrg.update({"data": item})
+                elif getattr(self.socketio.reason, item, None) is not None:
+                    kwrg.update({"reason": item})
+
         try:
-            return self.socketio._handle_event(handler, event, self.namespace, *args)  # noqa: SLF001
+            return await self.socketio._handle_event(**kwrg)  # noqa: SLF001
         except TypeError as err:
             if event != "disconnect":
                 raise TypeError(
@@ -42,7 +71,7 @@ class Namespace(BaseNamespace):
                     f"must accept at least one argument, the sid of the client"
                 ) from err
 
-            return self.socketio._handle_event(handler, event, self.namespace, *args[:-1])  # noqa: SLF001
+            return await self.socketio._handle_event(**kwrg)  # noqa: SLF001
 
     def emit(
         self,
@@ -69,3 +98,6 @@ class Namespace(BaseNamespace):
     def close_room(self, room: str, namespace: str = None) -> None:
         """Close a room."""
         return self.socketio.close_room(room=room, namespace=namespace or self.namespace)
+
+    async def save_session(self, sid: str, session: SessionMixin) -> None:
+        return await self.server.save_session(sid, session, namespace=self.namespace)
