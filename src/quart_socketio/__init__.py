@@ -198,7 +198,7 @@ class SocketIO(Controller):
                 return await handler(**kwrg)  # noqa: SLF001
 
         elif namespace_handler:
-            return await namespace_handler.trigger_event(event, *args, **kwargs)
+            return await namespace_handler.trigger_event(*args, **kwargs)
 
         return self.server.not_handled
 
