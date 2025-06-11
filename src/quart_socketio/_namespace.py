@@ -41,12 +41,7 @@ class Namespace(BaseNamespace):
         namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
 
         def get_handler() -> Callable[..., Any] | None:
-            return getattr(self, handler_name, None)
-
-        handler_name = "on_" + (event or "")
-        if not hasattr(self, handler_name):
-            # there is no handler for this event, so we ignore it
-            return
+            return getattr(self, "on_" + (event or ""), None)
 
         handler = get_handler()
 
