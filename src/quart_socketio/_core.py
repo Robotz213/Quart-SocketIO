@@ -213,7 +213,6 @@ class Controller:
         Put the debug middleware between the SocketIO middleware
         and the Quart application instance
         """
-
         #    mw1    mw2    mw3   Quart app
         #     o ---- o ---- o ---- o
         #     /
@@ -337,7 +336,7 @@ class Controller:
             resp = app.response_class()
             app.session_interface.save_session(app, session_obj, resp)
 
-    async def make_request(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs) -> Request:
+    async def make_request(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs: AnyStr) -> Request:
         kwargs = kwargs or {}
         data = kwargs.get("data", {})
         try:
@@ -376,11 +375,11 @@ class Controller:
             req.body = body
 
         except Exception as e:
-            print(e)
+            print(e)  # noqa: T201
 
         return req
 
-    async def make_websocket(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs) -> Websocket:
+    async def make_websocket(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs: AnyStr) -> Websocket:
         websock = Websocket(
             path=environ["PATH_INFO"],
             query_string=environ["asgi.scope"]["query_string"],

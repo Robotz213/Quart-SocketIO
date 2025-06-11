@@ -196,6 +196,12 @@ class SocketIO(Controller):
 
                 return await handler(**kwrg)  # noqa: SLF001
 
+        handler, args = self.server._get_namespace_handler(namespace, args)
+        if handler:
+            return await handler.trigger_event(event, *args)
+
+        return self.not_handled
+
     async def _handle_event(
         self,
         **kwargs: Any,
