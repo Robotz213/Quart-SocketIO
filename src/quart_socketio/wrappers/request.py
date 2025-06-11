@@ -22,5 +22,29 @@ class Request(QuartRequest, FlaskRequest):
             **kwargs: Keyword arguments passed to the parent classes.
 
         """
-        QuartRequest.__init__(self, *args, **kwargs)
-        FlaskRequest.__init__(self, *args, **kwargs)
+        from .._core import Controller
+
+        kw = kwargs
+        environ = kw.pop("environ", None)
+        method = environ["REQUEST_METHOD"]
+        scheme = environ["asgi.scope"].get("scheme", "http")
+        path = environ["PATH_INFO"]
+        query_string = environ["asgi.scope"]["query_string"]
+        headers = Controller.load_headers(environ["asgi.scope"]["headers"])
+        root_path = environ["asgi.scope"].get("root_path", "")
+        http_version = environ["SERVER_PROTOCOL"]
+        scope = environ["asgi.scope"]
+
+        QuartRequest.__init__(
+            self,
+            method=method,
+            scheme=scheme,
+            path=path,
+            query_string=query_string,
+            headers=headers,
+            root_path=root_path,
+            http_version=http_version,
+            scope=scope,
+        )
+
+        FlaskRequest.__init__(self, environ=environ)

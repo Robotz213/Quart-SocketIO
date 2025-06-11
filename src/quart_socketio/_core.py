@@ -271,7 +271,8 @@ class Controller:
             **self.config.to_dict(),
         )
 
-    async def load_headers(self, environ: dict[str, AnyStr]) -> Headers:
+    @classmethod
+    def load_headers(cls, environ: dict[str, AnyStr]) -> Headers:
         """Load headers from the ASGI scope."""
         headers = Headers()
 
