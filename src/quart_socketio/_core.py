@@ -284,14 +284,26 @@ class Controller:
             headers.add(item1.upper(), item2)
 
         for key, value in list(environ.items()):
+            if isinstance(value, Callable):
+                continue
+
             header_name = key
             if key.startswith("HTTP_"):
                 header_name = key.split("_")[-1].title()
                 if isinstance(value, bytes):
                     value = value.decode("utf-8")
 
-            elif isinstance(value, dict) or isinstance(value, Callable):
-                continue
+            elif isinstance(value, dict):
+                for k, v in value.items():
+                    if isinstance(v, str):
+                        try:
+                            if isinstance(v, bytes):
+                                v = v.decode("utf-8")
+
+                        except UnicodeDecodeError:
+                            # If decoding fails, keep it as bytes
+                            pass
+                        headers.add(k.title(), v)
 
             headers.add(header_name, value)
 
@@ -341,6 +353,8 @@ class Controller:
                 send_push_promise=self.send_push_promise,
             )
 
+            req.sid = kwargs.get("sid", None)
+
             new_data = {}
             for k, v in list(data.items()):
                 if isinstance(v, bytes):
@@ -367,7 +381,7 @@ class Controller:
         return req
 
     async def make_websocket(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs) -> Websocket:
-        return Websocket(
+        websock = Websocket(
             path=environ["PATH_INFO"],
             query_string=environ["asgi.scope"]["query_string"],
             scheme=environ["asgi.scope"].get("scheme", "http"),
@@ -381,6 +395,10 @@ class Controller:
             close=environ["asgi.scope"].get("close"),
             scope=environ["asgi.scope"],
         )
+
+        websock.sid = kwargs.get("sid", None)
+
+        return websock
 
     async def register_handler(self, handler_args: Tuple[str, Callable[..., Any], str]) -> None:
         """Register a SocketIO event handler.
