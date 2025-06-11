@@ -339,9 +339,8 @@ class Controller:
     async def make_request(self, **kwargs: AnyStr) -> Request:
         kwargs = kwargs or {}
         data = kwargs.get("data", {})
-
         try:
-            environ = kwargs.get("environ", self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"]))
+            environ = self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"])
             req = Request(  # noqa: F841
                 method=environ["REQUEST_METHOD"],
                 scheme=environ["asgi.scope"].get("scheme", "http"),
@@ -384,7 +383,7 @@ class Controller:
     async def make_websocket(self, **kwargs: AnyStr) -> Request:
         kwargs = kwargs or {}
         try:
-            environ = kwargs.get("environ", self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"]))
+            environ = self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"])
             websock = Websocket(
                 path=environ["PATH_INFO"],
                 query_string=environ["asgi.scope"]["query_string"],
