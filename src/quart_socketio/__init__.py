@@ -127,8 +127,8 @@ class SocketIO(Controller):
 
     async def _trigger_event(
         self,
-        *args: AnyStr | int | bool,
-        **kwargs: AnyStr | int | bool,
+        *args: AnyStr | int | bool | dict[str, AnyStr],
+        **kwargs: AnyStr | int | bool | dict[str, AnyStr],
     ) -> Any:
         """Dispatch an event to the proper handler method.
 
@@ -152,12 +152,13 @@ class SocketIO(Controller):
 
             ignore_data = [sid, event, namespace, environ]
 
-            data = [
-                x
+            data = {
+                k: v
                 for x in args
                 if not any(x == item for item in ignore_data)
-                and not (isinstance(x, str) and getattr(self.reason, x.replace(" ", "_").upper(), None))
-            ]
+                for k, v in list(x.items())
+                if isinstance(x, dict) and k not in ignore_data
+            }
 
             if self.config.app.extensions.get("quart-jwt-extended"):
                 for item in data:
@@ -180,14 +181,10 @@ class SocketIO(Controller):
 
             if len(args) > 0:
                 for item in args:
-                    if isinstance(item, dict) and item == environ:
-                        continue
-
-                    if isinstance(item, dict):
-                        kwrg.update(item)
-
-                    elif getattr(self.reason, item.replace(" ", "_").upper(), None):
+                    if isinstance(item, str) and getattr(self.reason, item.replace(" ", "_").upper(), None):
                         kwrg.update({"reason": item})
+                        break
+
             try:
                 return await handler(**kwrg)  # noqa: SLF001
             except TypeError as err:
@@ -201,7 +198,6 @@ class SocketIO(Controller):
 
     async def _handle_event(
         self,
-        *args: Any,
         **kwargs: Any,
     ) -> Any:
         app: Quart = self.sockio_mw.quart_app

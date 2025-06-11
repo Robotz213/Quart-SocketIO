@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import sys
 from typing import TYPE_CHECKING, Any, AnyStr, Callable, Optional, Tuple, Union
 
@@ -8,6 +10,7 @@ import quart
 import socketio
 from quart import Quart, Request, Websocket, session
 from quart import json as quart_json
+from quart.wrappers import Body
 from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
 
@@ -209,25 +212,24 @@ class Controller:
 
         Put the debug middleware between the SocketIO middleware
         and the Quart application instance
+        """
 
-             mw1    mw2    mw3   Quart app
-              o ---- o ---- o ---- o
-             /
-            o Quart-SocketIO
-             \  middleware
-              o
-            Quart-SocketIO WebSocket handler
+        #    mw1    mw2    mw3   Quart app
+        #     o ---- o ---- o ---- o
+        #     /
+        #    o Quart-SocketIO
+        #     \  middleware
+        #     o
+        #    Quart-SocketIO WebSocket handler
 
+        #    dbg-mw  mw1   mw2    mw3  Quart app
+        #     o ---- o ---- o ---- o ---- o
+        #     /
+        #    o Quart-SocketIO
+        #     \  middleware
+        #     o
+        #    Quart-SocketIO WebSocket handler
 
-            dbg-mw  mw1    mw2    mw3  Quart app
-              o ---- o ---- o ---- o ---- o
-             /
-            o Quart-SocketIO
-             \  middleware
-              o
-            Quart-SocketIO WebSocket handler
-
-        """  # noqa: D301, D413, W605
         if app.debug and self.config.launch_mode != "threading":
             self.sockio_mw.wsgi_app = DebuggedApplication(self.sockio_mw.wsgi_app, evalex=True)
 
@@ -325,17 +327,44 @@ class Controller:
 
     async def make_request(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs) -> Request:
         kwargs = kwargs or {}
-        return Request(  # noqa: F841
-            method=environ["REQUEST_METHOD"],
-            scheme=environ["asgi.scope"].get("scheme", "http"),
-            path=environ["PATH_INFO"],
-            query_string=environ["asgi.scope"]["query_string"],
-            headers=Headers(environ["asgi.scope"]["headers"]),
-            root_path=environ["asgi.scope"].get("root_path", ""),
-            http_version=environ["SERVER_PROTOCOL"],
-            scope=environ["asgi.scope"],
-            send_push_promise=self.send_push_promise,
-        )
+        data = kwargs.get("data", {})
+        try:
+            req = Request(  # noqa: F841
+                method=environ["REQUEST_METHOD"],
+                scheme=environ["asgi.scope"].get("scheme", "http"),
+                path=environ["PATH_INFO"],
+                query_string=environ["asgi.scope"]["query_string"],
+                headers=await self.load_headers(environ),
+                root_path=environ["asgi.scope"].get("root_path", ""),
+                http_version=environ["SERVER_PROTOCOL"],
+                scope=environ["asgi.scope"],
+                send_push_promise=self.send_push_promise,
+            )
+
+            new_data = {}
+            for k, v in list(data.items()):
+                if isinstance(v, bytes):
+                    v = base64.b64encode(v).decode("utf-8")
+                if isinstance(v, dict):
+                    for key, value in v.items():
+                        if isinstance(value, bytes):
+                            v[key] = base64.b64encode(value).decode("utf-8")
+
+                if isinstance(v, (list, tuple)):
+                    v = [base64.b64encode(item).decode("utf-8") if isinstance(item, bytes) else item for item in v]
+
+                new_data[k] = v
+
+            data = new_data
+            parsejson = json.dumps(data).encode("utf-8")
+            body = Body(len(parsejson), len(parsejson))
+            body.append(parsejson)
+            req.body = body
+
+        except Exception as e:
+            print(e)
+
+        return req
 
     async def make_websocket(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs) -> Websocket:
         return Websocket(
