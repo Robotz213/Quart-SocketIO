@@ -32,7 +32,7 @@ class Namespace(BaseNamespace):
             self.server = socketio
 
     async def trigger_event(
-        self, event: str, sid: str, environ: dict, *args: AnyStr | int | bool, **kwargs: AnyStr | int | bool
+        self, event: str, sid: str, *args: AnyStr | int | bool, **kwargs: AnyStr | int | bool
     ) -> Any:
         """Dispatch an event to the proper handler method.
 
@@ -46,6 +46,7 @@ class Namespace(BaseNamespace):
             # there is no handler for this event, so we ignore it
             return
         handler = getattr(self, handler_name)
+        environ = self.server.get_environ(sid, self.namespace)
         kwrg = kwargs.copy()
         kwrg.update({
             "handler": handler,

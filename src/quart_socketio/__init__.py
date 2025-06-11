@@ -612,13 +612,7 @@ class SocketIO(Controller):
         *args: Any,
         **kwargs: Any,
     ) -> Any:
-        if not environ:
-            # we don't have record of this client, ignore this event
-            return "", 400
-
-        if not isinstance(environ, dict):
-            environ = self.server.environ[sid]
-        app: Quart = self.sockio_mw.quart_app
+        app: Quart = self.config.app
 
         # Construct the request object
         req = Websocket(
@@ -673,16 +667,16 @@ class SocketIO(Controller):
                         except TypeError:
                             ret = await handler()
                     else:
-                        ret = await handler(*args)
+                        ret = await handler(**request.data)
                 except SocketIOConnectionRefusedError:
                     raise  # let this error bubble up to python-socketio
                 except Exception as e:
-                    err = "".join(traceback.format_exception_only(e))
+                    err = "".join(traceback.format_exception(e))
 
                     return err
                 if not self.config.manage_session:
                     # when Quart is managing the user session, it needs to save it
                     if not hasattr(session_obj, "modified") or session_obj.modified:
-                        resp = app.response_class()
+                        resp = app.response_class(request.headers, status=200)
                         app.session_interface.save_session(app, session_obj, resp)
                 return ret
