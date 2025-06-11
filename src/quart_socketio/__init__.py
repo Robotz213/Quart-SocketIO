@@ -4,7 +4,7 @@ import io  # noqa: F401
 import json  # noqa: F401
 import traceback
 from functools import wraps
-from typing import Any, AnyStr, Callable, Optional, Union
+from typing import Any, AnyStr, Callable, Coroutine, Optional, Tuple
 
 import click  # noqa: F401
 import socketio
@@ -156,18 +156,16 @@ class SocketIO(Controller):
         self.server.unregister_namespace(namespace_handler)
         self.config.namespace_handlers.remove(namespace_handler)
 
-    def on(
-        self, message: Union[str, int, bool], namespace: Optional[Union[str, int, bool]] = None
-    ) -> Callable[[TFunction], TFunction]:
+    def on(self, event: str, namespace: str = "/") -> Callable[[TFunction], TFunction]:
         """Register a SocketIO event handler.
 
         This decorator must be applied to SocketIO event handlers. Example::
 
             @socketio.on("my event", namespace="/chat")
-            def handle_my_custom_event(json):
+            async def handle_my_custom_event(json):
                 print("received json: " + str(json))
 
-        :param message: The name of the event. This is normally a user defined
+        :param event: The name of the event. This is normally a user defined
                         string, but a few event names are already defined. Use
                         ``'message'`` to define a handler that takes a string
                         payload, ``'json'`` to define a handler that takes a
@@ -176,34 +174,57 @@ class SocketIO(Controller):
                         events.
         :param namespace: The namespace on which the handler is to be
                           registered. Defaults to the global namespace.
+
         """
-        namespace = namespace or "/"
 
         def decorator(handler: TFunction) -> TFunction:
             @wraps(handler)
-            async def _handler(sid: str, *args: str | int | bool) -> AnyStr | int | bool:
-                nonlocal namespace
+            async def _handler(
+                event: str,
+                namespace: str,
+                sid: str,
+                environ: dict,
+                *args: str | int | bool,
+                **kwargs: str | int | bool,
+            ) -> AnyStr | int | bool:
+                """Process the event."""
                 real_ns = namespace
+                real_event = event
                 if namespace == "*":
                     real_ns = sid
-                    sid = args[0]
-                    args = args[1:]
-                real_msg = message
-                if message == "*":
-                    real_msg = sid
-                    sid = args[0]
-                    args = [real_msg] + list(args[1:])
-                return await self._handle_event(handler, message, real_ns, sid, *args)
 
+                if event == "*":
+                    real_event = sid
+                    sid = args[0]
+                    args = [real_event] + list(args[1:])
+
+                return await self._handle_event(
+                    handler=handler,
+                    event=real_event,
+                    namespace=real_ns,
+                    sid=sid,
+                    environ=environ,
+                    *args,  # noqa: B026
+                    **kwargs,
+                )
+
+            self.config.handlers.append((event, _handler, namespace))
             if self.server:
-                self.server.on(message, _handler, namespace=namespace)
-            else:
-                self.handlers.append((message, _handler, namespace))
+                # Verify if the handler is already registered
+                ret: Tuple[Callable[..., Any] | None, tuple | Any] = self.server._get_event_handler(
+                    event=event, namespace=namespace
+                )
+                handler_ret = ret[0]
+
+                # If the handler is not already registered, register it
+                if not handler_ret:
+                    self.server.on(event=event, handler=_handler, namespace=namespace)
+
             return handler
 
         return decorator
 
-    def on_error(self, namespace: Optional[str] = None) -> Callable[[TExceptionHandler], TExceptionHandler]:
+    def on_error(self, namespace: str = "/") -> Callable[[TExceptionHandler], TExceptionHandler]:
         """Define a custom error handler for SocketIO events.
 
         This decorator can be applied to a function that acts as an error
@@ -218,7 +239,6 @@ class SocketIO(Controller):
         :param namespace: The namespace for which to register the error
                           handler. Defaults to the global namespace.
         """
-        namespace = namespace or "/"
 
         def decorator(exception_handler: TExceptionHandler) -> TExceptionHandler:
             if not callable(exception_handler):
@@ -245,7 +265,7 @@ class SocketIO(Controller):
         self.config.default_exception_handler = exception_handler
         return exception_handler
 
-    def on_event(self, message: str, handler: Callable[..., Any], namespace: Optional[str] = None) -> None:
+    def on_event(self, event: str, handler: Callable[..., Any], namespace: str = "/") -> None:
         """Register a SocketIO event handler.
 
         ``on_event`` is the non-decorator version of ``'on'``.
@@ -269,9 +289,15 @@ class SocketIO(Controller):
         :param namespace: The namespace on which the handler is to be
                           registered. Defaults to the global namespace.
         """
-        self.on(message, namespace=namespace)(handler)
+        self.on(event=event, namespace=namespace)(handler)
 
-    def event(self, *args: Any, **kwargs: Any) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    def event(
+        self,
+        handler: Callable[..., Any] | None,
+        namespace: str = "/",
+        *args: Any,
+        **kwargs: Any,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Register an event handler.
 
         This is a simplified version of the ``on()`` method that takes the
@@ -296,16 +322,8 @@ class SocketIO(Controller):
                 print("Received data: ", data)
 
         """
-        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
-            # the decorator was invoked without arguments
-            # args[0] is the decorated function
-            return self.on(args[0].__name__)(args[0])
-        else:
-            # the decorator was invoked with arguments
-            def set_handler(handler: Callable) -> Callable:
-                return self.on(handler.__name__, *args, **kwargs)(handler)
-
-            return set_handler
+        # the decorator was invoked with arguments
+        return self.on(handler.__name__, namespace=namespace)(handler)
 
     def on_namespace(self, namespace_handler: Namespace) -> None:
         """
@@ -321,12 +339,21 @@ class SocketIO(Controller):
         if not isinstance(namespace_handler, Namespace):
             raise ValueError("Not a namespace instance.")
         namespace_handler._set_socketio(self)  # noqa: SLF001
-        if self.server:
-            self.server.register_namespace(namespace_handler)
-        else:
-            self.config.namespace_handlers.append(namespace_handler)
+        self.register_namespace(namespace_handler)
 
-    async def emit(self, event: str, *args: Any, **kwargs: Any) -> None:
+    async def emit(
+        self,
+        event: Any,
+        data: Any | None = None,
+        to: Any | None = None,
+        room: Any | None = None,
+        skip_sid: Any | None = None,
+        namespace: Any | None = None,
+        callback: Callable[..., Any] | None = None,
+        ignore_queue: bool = False,
+        *args: str | int | bool,
+        **kwargs: str | int | bool,
+    ) -> None:
         """Emit a server generated SocketIO event.
 
         This function emits a SocketIO event to one or more connected clients.
@@ -361,13 +388,11 @@ class SocketIO(Controller):
                          those provided by the client. Callback functions can
                          only be used when addressing an individual client.
         """
-        namespace = kwargs.pop("namespace", "/")
-        to = kwargs.pop("to", None) or kwargs.pop("room", None)
         include_self = kwargs.pop("include_self", True)
         skip_sid = kwargs.pop("skip_sid", None)
         if not include_self and not skip_sid:
             skip_sid = request.sid
-        callback = kwargs.pop("callback", None)
+
         if callback:
             # wrap the callback so that it sets app app and request contexts
             sid = None
@@ -377,8 +402,10 @@ class SocketIO(Controller):
                 sid = getattr(request, "sid", None)
                 original_namespace = getattr(request, "namespace", None)
 
-            def _callback_wrapper(*args: str | int | bool) -> object:
-                return self._handle_event(original_callback, None, original_namespace, sid, *args)
+            async def _callback_wrapper(
+                *args: str | int | bool, **kwargs: str | int | bool
+            ) -> Coroutine[Any, Any, Any]:
+                return await self._handle_event(original_callback, None, original_namespace, sid, *args, **kwargs)
 
             if sid:
                 # the callback wrapper above will install a request context
@@ -387,13 +414,14 @@ class SocketIO(Controller):
                 # populated request context (i.e. request.sid is defined)
                 callback = _callback_wrapper
         await self.server.emit(
-            event,
-            *args,
-            namespace=namespace,
+            event=event,
+            data=data,
             to=to,
+            room=room,
             skip_sid=skip_sid,
+            namespace=namespace,
             callback=callback,
-            **kwargs,
+            ignore_queue=ignore_queue,
         )
 
     async def call(self, event: str, *args: Any, **kwargs: Any) -> Any:
