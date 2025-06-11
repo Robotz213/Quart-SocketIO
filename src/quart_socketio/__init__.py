@@ -4,7 +4,7 @@ import io  # noqa: F401
 import json  # noqa: F401
 import traceback
 from functools import wraps
-from typing import Any, AnyStr, Callable, Coroutine, Optional, Tuple
+from typing import Any, AnyStr, Callable, Coroutine, Optional
 
 import click  # noqa: F401
 import socketio
@@ -125,36 +125,104 @@ class SocketIO(Controller):
 
     reason: socketio.AsyncServer.reason = socketio.AsyncServer.reason
 
-    async def register_namespace(self, namespace_handler: Namespace) -> None:
-        """Register a namespace handler object.
+    async def _trigger_event(
+        self,
+        *args: AnyStr | int | bool,
+        **kwargs: AnyStr | int | bool,
+    ) -> Any:
+        """Dispatch an event to the proper handler method.
 
-        :param namespace_handler: An instance of a :class:`Namespace` subclass
-                                  that handles all the event traffic for a
-                                  namespace.
+        In the most common usage, this method is not overloaded by subclasses,
+        as it performs the routing of events to methods. However, this
+        method can be overridden if special dispatching rules are needed, or if
+        having a single method that catches all events is desired.
         """
-        if not isinstance(namespace_handler, Namespace):
-            raise ValueError("Not a namespace instance")
-        if self.server is None:
-            raise RuntimeError("SocketIO server is not initialized")
+        sid: str = args[2]
+        event: str = args[0] if len(args) > 1 and args[0] != "*" else sid
+        namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
 
-        namespace_handler._set_server(self)
-        self.server.register_namespace(namespace_handler)
-        self.config.namespace_handlers.append(namespace_handler)
+        def get_handler() -> Callable[..., Any] | None:
+            filter_ = list(filter(lambda x: x[0] == event and x[2] == namespace, self.config.handlers))
+            return filter_[0][1] if len(filter_) > 0 else None
 
-    async def unregister_namespace(self, namespace_handler: Namespace) -> None:
-        """Unregister a namespace handler object.
+        handler = get_handler()
 
-        :param namespace_handler: An instance of a :class:`Namespace` subclass
-                                  that handles all the event traffic for a
-                                  namespace.
-        """
-        if not isinstance(namespace_handler, Namespace):
-            raise ValueError("Not a namespace instance")
-        if self.server is None:
-            raise RuntimeError("SocketIO server is not initialized")
-        namespace_handler._set_server(None)
-        self.server.unregister_namespace(namespace_handler)
-        self.config.namespace_handlers.remove(namespace_handler)
+        if handler:
+            environ = args[3]
+
+            ignore_data = [sid, event, namespace, environ]
+
+            data = [
+                x
+                for x in args
+                if not any(x == item for item in ignore_data)
+                and not (isinstance(x, str) and getattr(self.reason, x.replace(" ", "_").upper(), None))
+            ]
+
+            if self.config.app.extensions.get("quart-jwt-extended"):
+                for item in data:
+                    header_name = self.config.app.config.get("JWT_HEADER_NAME", "Authorization")
+
+                    if isinstance(item, dict):
+                        for k, _ in list(item.items()):
+                            if header_name in k:
+                                environ[header_name] = item[k]
+                                break
+
+            kwrg = kwargs.copy()
+            kwrg.update({
+                "event": event,
+                "namespace": namespace,
+                "sid": sid,
+                "environ": environ,
+                "data": data,
+            })
+
+            if len(args) > 0:
+                for item in args:
+                    if isinstance(item, dict) and item == environ:
+                        continue
+
+                    if isinstance(item, dict):
+                        kwrg.update(item)
+
+                    elif getattr(self.reason, item.replace(" ", "_").upper(), None):
+                        kwrg.update({"reason": item})
+            try:
+                return await handler(**kwrg)  # noqa: SLF001
+            except TypeError as err:
+                if event != "disconnect":
+                    raise TypeError(
+                        f"Handler for event '{event}' in namespace '{namespace}' "
+                        f"must accept at least one argument, the sid of the client"
+                    ) from err
+
+                return await handler(**kwrg)  # noqa: SLF001
+
+    async def _handle_event(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        app: Quart = self.sockio_mw.quart_app
+
+        handler = kwargs.pop("handler", None)
+
+        async with app.request_context(await self.make_request(**kwargs)):
+            async with app.websocket_context(await self.make_websocket(**kwargs)):
+                if not self.config.manage_session:
+                    await self.handle_session(request.namespace)
+
+                try:
+                    return await handler()
+
+                except SocketIOConnectionRefusedError:
+                    raise  # let this error bubble up to python-socketio
+                except Exception as e:
+                    err_more = "".join(traceback.format_exception(e))  # noqa: F841
+                    err = "".join(traceback.format_exception_only(e))
+                    self.config.app.logger.error(err)
+                    return err
 
     def on(self, event: str, namespace: str = "/") -> Callable[[TFunction], TFunction]:
         """Register a SocketIO event handler.
@@ -180,49 +248,82 @@ class SocketIO(Controller):
         def decorator(handler: TFunction) -> TFunction:
             @wraps(handler)
             async def _handler(
-                event: str,
-                namespace: str,
-                sid: str,
-                environ: dict,
-                *args: str | int | bool,
                 **kwargs: str | int | bool,
             ) -> AnyStr | int | bool:
                 """Process the event."""
-                real_ns = namespace
-                real_event = event
-                if namespace == "*":
-                    real_ns = sid
+                kwargs = kwargs.copy()
+                kwargs.update({"handler": handler})
+                try:
+                    return await self._handle_event(**kwargs)  # noqa: SLF001
+                except TypeError as err:
+                    if event != "disconnect":
+                        raise TypeError(
+                            f"Handler for event '{event}' in namespace '{namespace}' "
+                            f"must accept at least one argument, the sid of the client"
+                        ) from err
 
-                if event == "*":
-                    real_event = sid
-                    sid = args[0]
-                    args = [real_event] + list(args[1:])
-
-                return await self._handle_event(
-                    handler=handler,
-                    event=real_event,
-                    namespace=real_ns,
-                    sid=sid,
-                    environ=environ,
-                    *args,  # noqa: B026
-                    **kwargs,
-                )
+                    return await self._handle_event(**kwargs)  # noqa: SLF001
 
             self.config.handlers.append((event, _handler, namespace))
-            if self.server:
-                # Verify if the handler is already registered
-                ret: Tuple[Callable[..., Any] | None, tuple | Any] = self.server._get_event_handler(
-                    event=event, namespace=namespace
-                )
-                handler_ret = ret[0]
-
-                # If the handler is not already registered, register it
-                if not handler_ret:
-                    self.server.on(event=event, handler=_handler, namespace=namespace)
-
             return handler
 
         return decorator
+
+    def event(
+        self,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Register an event handler.
+
+        This is a simplified version of the ``on()`` method that takes the
+        event name from the decorated function.
+
+        Example usage::
+
+            @socketio.event
+            def my_event(data):
+                print("Received data: ", data)
+
+        The above example is equivalent to::
+
+            @socketio.on("my_event")
+            def my_event(data):
+                print("Received data: ", data)
+
+        A custom namespace can be given as an argument to the decorator::
+
+            @socketio.event(namespace="/test")
+            def my_event(data):
+                print("Received data: ", data)
+
+        """
+        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
+            # the decorator was invoked without arguments
+            # args[0] is the decorated function
+            return self.on(args[0].__name__)(args[0])
+        else:
+            # the decorator was invoked with arguments
+            def set_handler(handler):  # noqa: ANN001, ANN202
+                return self.on(handler.__name__, *args, **kwargs)(handler)
+
+            return set_handler
+
+    def on_namespace(self, namespace_handler: Namespace) -> None:
+        """
+        Register a custom namespace handler.
+
+        Args:
+            namespace_handler (Namespace): The namespace handler instance to register.
+
+        Raises:
+            ValueError: If the provided handler is not an instance of Namespace.
+
+        """
+        if not isinstance(namespace_handler, Namespace):
+            raise ValueError("Not a namespace instance.")
+        namespace_handler._set_socketio(self)  # noqa: SLF001
+        self.register_namespace(namespace_handler)
 
     def on_error(self, namespace: str = "/") -> Callable[[TExceptionHandler], TExceptionHandler]:
         """Define a custom error handler for SocketIO events.
@@ -290,56 +391,6 @@ class SocketIO(Controller):
                           registered. Defaults to the global namespace.
         """
         self.on(event=event, namespace=namespace)(handler)
-
-    def event(
-        self,
-        handler: Callable[..., Any] | None,
-        namespace: str = "/",
-        *args: Any,
-        **kwargs: Any,
-    ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-        """Register an event handler.
-
-        This is a simplified version of the ``on()`` method that takes the
-        event name from the decorated function.
-
-        Example usage::
-
-            @socketio.event
-            def my_event(data):
-                print("Received data: ", data)
-
-        The above example is equivalent to::
-
-            @socketio.on("my_event")
-            def my_event(data):
-                print("Received data: ", data)
-
-        A custom namespace can be given as an argument to the decorator::
-
-            @socketio.event(namespace="/test")
-            def my_event(data):
-                print("Received data: ", data)
-
-        """
-        # the decorator was invoked with arguments
-        return self.on(handler.__name__, namespace=namespace)(handler)
-
-    def on_namespace(self, namespace_handler: Namespace) -> None:
-        """
-        Register a custom namespace handler.
-
-        Args:
-            namespace_handler (Namespace): The namespace handler instance to register.
-
-        Raises:
-            ValueError: If the provided handler is not an instance of Namespace.
-
-        """
-        if not isinstance(namespace_handler, Namespace):
-            raise ValueError("Not a namespace instance.")
-        namespace_handler._set_socketio(self)  # noqa: SLF001
-        self.register_namespace(namespace_handler)
 
     async def emit(
         self,
@@ -563,35 +614,3 @@ class SocketIO(Controller):
 
     async def send_push_promise(self, data: str, headers: Headers) -> None:
         """Empty."""
-
-    async def _handle_event(
-        self,
-        handler: Callable[..., Any],
-        event: str,
-        namespace: str = None,
-        sid: str = None,
-        environ: dict[str, Any] = None,
-        reason: Optional[str] = None,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Any:
-        app: Quart = self.sockio_mw.quart_app
-
-        async with app.request_context(await self.make_request(environ)):
-            async with app.websocket_context(await self.make_websocket(environ)):
-                if not self.config.manage_session:
-                    await self.handle_session(environ)
-
-                request.sid = sid
-                request.namespace = namespace
-                request.data = {}
-
-                try:
-                    return await handler()
-
-                except SocketIOConnectionRefusedError:
-                    raise  # let this error bubble up to python-socketio
-                except Exception as e:
-                    err = "".join(traceback.format_exception_only(e))
-                    self.config.app.logger.error(err)
-                    return err

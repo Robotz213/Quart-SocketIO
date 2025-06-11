@@ -12,6 +12,7 @@ from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
 
 from quart_socketio._middleare import QuartSocketIOMiddleware
+from quart_socketio._namespace import Namespace
 from quart_socketio._types import TQueueClassMap
 from quart_socketio.config.python_socketio import AsyncSocketIOConfig
 from quart_socketio.config.quart_socketio import Config
@@ -98,8 +99,11 @@ class Controller:
         self.server = socketio.AsyncServer(**self.server_options.to_dict())
         for handler in self.config.handlers:
             self.server.on(handler[0], handler[1], namespace=handler[2])
+
         for namespace_handler in self.config.namespace_handlers:
             self.server.register_namespace(namespace_handler)
+
+        self.server._trigger_event = self._trigger_event
 
         if app is not None:
             # here we attach the SocketIO middleware to the SocketIO object so
@@ -319,7 +323,8 @@ class Controller:
             resp = app.response_class()
             app.session_interface.save_session(app, session_obj, resp)
 
-    async def make_request(self, environ: dict[str, str | dict[str, Any]]) -> Request:
+    async def make_request(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs) -> Request:
+        kwargs = kwargs or {}
         return Request(  # noqa: F841
             method=environ["REQUEST_METHOD"],
             scheme=environ["asgi.scope"].get("scheme", "http"),
@@ -332,7 +337,7 @@ class Controller:
             send_push_promise=self.send_push_promise,
         )
 
-    async def make_websocket(self, environ: dict[str, str | dict[str, Any]]) -> Websocket:
+    async def make_websocket(self, environ: dict[str, str | dict[str, Any]] = None, **kwargs) -> Websocket:
         return Websocket(
             path=environ["PATH_INFO"],
             query_string=environ["asgi.scope"]["query_string"],
@@ -347,6 +352,18 @@ class Controller:
             close=environ["asgi.scope"].get("close"),
             scope=environ["asgi.scope"],
         )
+
+    async def register_handler(self, handler_args: Tuple[str, Callable[..., Any], str]) -> None:
+        """Register a SocketIO event handler.
+
+        This method is used to register an event handler without using the
+        decorator syntax. It is useful for dynamically registering handlers.
+
+        :param handler_args: A tuple containing the event name, handler function,
+                             and namespace.
+        """
+        event, handler, namespace = handler_args
+        self.on(event=event, namespace=namespace)(handler)
 
     def test_client(
         self,
@@ -385,6 +402,37 @@ class Controller:
             auth=auth,
             quart_test_client=quart_test_client,
         )
+
+    async def register_namespace(self, namespace_handler: Namespace) -> None:
+        """Register a namespace handler object.
+
+        :param namespace_handler: An instance of a :class:`Namespace` subclass
+                                  that handles all the event traffic for a
+                                  namespace.
+        """
+        if not isinstance(namespace_handler, Namespace):
+            raise ValueError("Not a namespace instance")
+        if self.server is None:
+            raise RuntimeError("SocketIO server is not initialized")
+
+        namespace_handler._set_server(self)
+        self.server.register_namespace(namespace_handler)
+        self.config.namespace_handlers.append(namespace_handler)
+
+    async def unregister_namespace(self, namespace_handler: Namespace) -> None:
+        """Unregister a namespace handler object.
+
+        :param namespace_handler: An instance of a :class:`Namespace` subclass
+                                  that handles all the event traffic for a
+                                  namespace.
+        """
+        if not isinstance(namespace_handler, Namespace):
+            raise ValueError("Not a namespace instance")
+        if self.server is None:
+            raise RuntimeError("SocketIO server is not initialized")
+        namespace_handler._set_server(None)
+        self.server.unregister_namespace(namespace_handler)
+        self.config.namespace_handlers.remove(namespace_handler)
 
     # async def stop(self) -> None:
     #     """Stop a running SocketIO web server.

@@ -10,7 +10,7 @@ class _ManagedSession(dict, SessionMixin):
     """
 
 
-def get_session_manager(environ, session):
+def get_session_manager(environ: dict, session: SessionMixin) -> _ManagedSession:
     # manage a separate session for this client's Socket.IO events
     # created as a copy of the regular user session
     if "saved_session" not in environ:
@@ -23,3 +23,5 @@ def get_session_manager(environ, session):
         # update session for Quart < 2.2
         ctx = quart._websocket_ctx_stack.top  # noqa: SLF001
     ctx.session = session_obj
+
+    return session_obj
