@@ -22,6 +22,14 @@ class Namespace(BaseNamespace):
         """Check if the namespace is asyncio-based."""
         return True
 
+    async def make_request(self, **kwargs: Any) -> dict[str, Any]:
+        """Create a request dictionary for the namespace."""
+        return await self.socketio.make_request(**kwargs)
+
+    async def make_websocket(self, **kwargs: Any) -> dict[str, Any]:
+        """Create a websocket dictionary for the namespace."""
+        return await self.socketio.make_websocket(**kwargs)
+
     async def trigger_event(
         self,
         *args: AnyStr | int | bool | dict[str, AnyStr],
