@@ -9,6 +9,7 @@ import quart
 import socketio
 from quart import Quart, Request, Websocket, has_request_context, session
 from quart import websocket as request
+from quart.wrappers import Body  # noqa: F401
 from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError  # noqa: F401
 from werkzeug.datastructures.headers import Headers
 
@@ -667,13 +668,8 @@ class SocketIO(Controller):
                         app.session_interface.save_session(app, session_obj, resp)
 
                 try:
-                    if event == "connect" or event == "disconnect":
-                        try:
-                            return await handler(**request.data)
-                        except TypeError:
-                            return await handler()
-                    else:
-                        return await handler(**request.data)
+                    return await handler()
+
                 except SocketIOConnectionRefusedError:
                     raise  # let this error bubble up to python-socketio
                 except Exception as e:
