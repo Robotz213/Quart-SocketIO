@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, AnyStr, Callable, Optional, Tuple, Union
 import quart
 import socketio
 from flask import Request as FlaskRequest  # noqa: F401
-from quart import Quart, Websocket, session
+from quart import Quart, Request, Websocket, session
 from quart import Request as QuartRequest  # noqa: F401
 from quart import json as quart_json
 from quart.wrappers import Body
@@ -22,7 +22,6 @@ from quart_socketio._types import TQueueClassMap
 from quart_socketio.config.python_socketio import AsyncSocketIOConfig
 from quart_socketio.config.quart_socketio import Config
 from quart_socketio.test_client import SocketIOTestClient
-from quart_socketio.wrappers.request import Request
 
 from ._manager import _ManagedSession
 
@@ -343,10 +342,21 @@ class Controller:
     async def make_request(self, **kwargs: AnyStr) -> Request:
         kwargs = kwargs or {}
         data = kwargs.get("data", {})
+
+        environ = self.server.get_environ(kwargs["sid"], namespace=kwargs.get("namespace", None))
+
         try:
-            environ = self.server.get_environ(kwargs["sid"], namespace=kwargs["namespace"])
-            kwargs["environ"] = environ
-            req = Request.setup(**kwargs)
+            req = Request(  # noqa: F841
+                method=environ["REQUEST_METHOD"],
+                scheme=environ["asgi.scope"].get("scheme", "http"),
+                path=environ["PATH_INFO"],
+                query_string=environ["asgi.scope"]["query_string"],
+                headers=await self.load_headers(environ),
+                root_path=environ["asgi.scope"].get("root_path", ""),
+                http_version=environ["SERVER_PROTOCOL"],
+                scope=environ["asgi.scope"],
+                send_push_promise=self.send_push_promise,
+            )
 
             req.sid = kwargs.get("sid", None)
 
