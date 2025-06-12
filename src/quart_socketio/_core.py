@@ -351,7 +351,7 @@ class Controller:
                 scheme=environ["asgi.scope"].get("scheme", "http"),
                 path=environ["PATH_INFO"],
                 query_string=environ["asgi.scope"]["query_string"],
-                headers=await self.load_headers(environ),
+                headers=self.load_headers(environ),
                 root_path=environ["asgi.scope"].get("root_path", ""),
                 http_version=environ["SERVER_PROTOCOL"],
                 scope=environ["asgi.scope"],

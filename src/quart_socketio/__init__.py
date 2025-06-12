@@ -155,7 +155,7 @@ class SocketIO(Controller):
 
             data = {}
             for x in args:
-                if not any(x == item for item in ignore_data):
+                if x and not any(x == item for item in ignore_data):
                     for k, v in list(x.items()):
                         if isinstance(x, dict) and k not in ignore_data:
                             data[k] = v
