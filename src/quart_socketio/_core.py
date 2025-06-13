@@ -371,8 +371,9 @@ class Controller:
                 if k.lower() == "files" or k == "file":
                     if isinstance(v, dict) and v.get("Content-Type"):
                         filename: str = str(v.get("filename", "file"))
+                        bytes_content = io.BytesIO(v.get("content"))
                         content = FileStorage(
-                            io.BytesIO(v.get("content")),
+                            bytes_content,
                             content_type=v.get("Content-Type", "application/octet-stream"),
                             filename=filename,
                         )
