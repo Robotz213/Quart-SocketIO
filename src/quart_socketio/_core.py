@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import json
+import base64  # noqa: F401
+import io
+import json  # noqa: F401
 import sys
 from typing import TYPE_CHECKING, Any, AnyStr, Callable, Optional, Tuple, Union
 
@@ -12,7 +13,10 @@ from flask import Request as FlaskRequest  # noqa: F401
 from quart import Quart, Request, Websocket, session
 from quart import Request as QuartRequest  # noqa: F401
 from quart import json as quart_json
-from quart.wrappers import Body
+from quart.datastructures import FileStorage
+from quart.formparser import FormDataParser  # noqa: F401
+from quart.wrappers import Body  # noqa: F401
+from werkzeug.datastructures import MultiDict
 from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
 
@@ -360,25 +364,36 @@ class Controller:
 
             req.sid = kwargs.get("sid", None)
 
-            new_data = {}
+            new_data = MultiDict()
+            new_files = MultiDict()
             for k, v in list(data.items()):
-                if isinstance(v, bytes):
-                    v = base64.b64encode(v).decode("utf-8")
-                if isinstance(v, dict):
-                    for key, value in v.items():
-                        if isinstance(value, bytes):
-                            v[key] = base64.b64encode(value).decode("utf-8")
+                if k.lower() == "files" or k == "file":
+                    if isinstance(v, dict) and v.get("Content-Type"):
+                        filename: str = str(v.get("filename", "file"))
+                        content = FileStorage(
+                            io.BytesIO(v.get("content")),
+                            content_type=v.get("Content-Type", "application/octet-stream"),
+                            filename=filename,
+                        )
+                        new_files.add(filename, content)
 
-                if isinstance(v, (list, tuple)):
-                    v = [base64.b64encode(item).decode("utf-8") if isinstance(item, bytes) else item for item in v]
+                    elif isinstance(v, list):
+                        for file_data in v:
+                            if isinstance(file_data, dict) and file_data.get("Content-Type"):
+                                filename: str = str(file_data.get("filename", "file"))
+                                content = FileStorage(
+                                    io.BytesIO(file_data.get("content")),
+                                    content_type=file_data.get("Content-Type", "application/octet-stream"),
+                                    filename=filename,
+                                )
+                                new_files.add(filename, content)
 
-                new_data[k] = v
+                elif k.lower() == "json" or k == "json" or k == "data":
+                    if isinstance(v, (list, dict)):
+                        new_data.add(k, v)
 
-            data = new_data
-            parsejson = json.dumps(data).encode("utf-8")
-            body = Body(len(parsejson), len(parsejson))
-            body.append(parsejson)
-            req.body = body
+            req.data = new_data
+            req.files = new_files
 
         except Exception as e:  # noqa: F841
             raise

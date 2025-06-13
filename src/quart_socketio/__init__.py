@@ -146,7 +146,7 @@ class SocketIO(Controller):
             return filter_[0][1] if len(filter_) > 0 else None
 
         handler = get_handler()
-        namespace_handler, _ = self.server._get_namespace_handler(namespace, args)
+        namespace_handler, namespace_args = self.server._get_namespace_handler(namespace, args)
 
         if handler:
             environ = args[3]
@@ -155,7 +155,7 @@ class SocketIO(Controller):
 
             data = {}
             for x in args:
-                if x and not any(x == item for item in ignore_data):
+                if not any(x == item for item in ignore_data):
                     for k, v in list(x.items()):
                         if isinstance(x, dict) and k not in ignore_data:
                             data[k] = v
@@ -197,7 +197,7 @@ class SocketIO(Controller):
                 return await handler(**kwrg)  # noqa: SLF001
 
         elif namespace_handler:
-            return await namespace_handler.trigger_event(*args, **kwargs)
+            return await namespace_handler.trigger_event(*namespace_args, **kwargs)
 
         return self.server.not_handled
 

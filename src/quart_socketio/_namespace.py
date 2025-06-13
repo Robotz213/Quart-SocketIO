@@ -52,19 +52,27 @@ class Namespace(BaseNamespace):
             return getattr(self, "on_" + (event or ""), None)
 
         handler = get_handler()
-
+        server_environ = self.server.get_environ(sid, namespace=namespace)
         if handler:
-            environ = args[3]
+            environ = server_environ
 
-            ignore_data = [sid, event, namespace, environ]
+            ignore_data = [sid, event, namespace, server_environ]
 
-            data = {
-                k: v
-                for x in args
-                if not any(x == item for item in ignore_data)
-                for k, v in list(x.items())
-                if isinstance(x, dict) and k not in ignore_data
-            }
+            data = {}
+            for x in args:
+                if not any(x == item for item in ignore_data):
+                    if isinstance(x, dict) and x not in ignore_data:
+                        for k, v in list(x.items()):
+                            if k not in ignore_data:
+                                data[k] = v
+
+            # data = {
+            #     k: v
+            #     for x in args
+            #     if not any(x == item for item in ignore_data)
+            #     for k, v in list(x.items())
+            #     if isinstance(x, dict) and k not in ignore_data
+            # }
 
             if config.app.extensions.get("quart-jwt-extended"):
                 for item in data:
