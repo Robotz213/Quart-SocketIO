@@ -19,6 +19,7 @@ from quart.wrappers import Body  # noqa: F401
 from werkzeug.datastructures import MultiDict
 from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
+from werkzeug.test import EnvironBuilder  # noqa: F401
 
 from quart_socketio._middleare import QuartSocketIOMiddleware
 from quart_socketio._namespace import Namespace
@@ -389,11 +390,12 @@ class Controller:
                                 new_files.add(filename, content)
 
                 elif k.lower() == "json" or k == "json" or k == "data":
-                    if isinstance(v, (list, dict)):
+                    if isinstance(v, (list, dict, str)):
                         new_data.add(k, v)
 
-            req.data = new_data
-            req.files = new_files
+            req._data = new_data
+            req._files = new_files
+            req._form = new_data
 
         except Exception as e:  # noqa: F841
             raise
