@@ -346,7 +346,7 @@ class Controller:
 
     async def make_request(self, **kwargs: AnyStr) -> Request:
         kwargs = kwargs or {}
-        data = kwargs.get("data", {})
+        data = kwargs.get("data", kwargs.get("json", kwargs.get("form", {})))
 
         environ = self.server.get_environ(kwargs["sid"], namespace=kwargs.get("namespace", None))
 
@@ -364,6 +364,8 @@ class Controller:
             )
 
             req.sid = kwargs.get("sid", None)
+
+            data_refs = ["json", "data", "form"]
 
             new_data = MultiDict()
             new_files = MultiDict()
@@ -390,9 +392,15 @@ class Controller:
                                 )
                                 new_files.add(filename, content)
 
-                elif k.lower() == "json" or k == "json" or k == "data":
+                elif any(k.lower() == dataref for dataref in data_refs):
                     if isinstance(v, (list, dict, str)):
-                        new_data.add(k, v)
+                        if isinstance(v, dict):
+                            for key, value in list(v.items()):
+                                new_data.add(key, value)
+
+                        elif isinstance(v, list):
+                            for pos, item in enumerate(v):
+                                new_data.add(f"item{pos}", item)
 
             req._data = new_data
             req._files = new_files
