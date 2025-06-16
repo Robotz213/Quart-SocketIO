@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import base64  # noqa: F401
-import io
 import json  # noqa: F401
 import sys
 from typing import TYPE_CHECKING, Any, AnyStr, Callable, Optional, Tuple, Union
@@ -13,10 +12,8 @@ from flask import Request as FlaskRequest  # noqa: F401
 from quart import Quart, Request, Websocket, session
 from quart import Request as QuartRequest  # noqa: F401
 from quart import json as quart_json
-from quart.datastructures import FileStorage
 from quart.formparser import FormDataParser  # noqa: F401
 from quart.wrappers import Body  # noqa: F401
-from werkzeug.datastructures import MultiDict
 from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
 from werkzeug.test import EnvironBuilder  # noqa: F401
@@ -24,6 +21,7 @@ from werkzeug.test import EnvironBuilder  # noqa: F401
 from quart_socketio._middleare import QuartSocketIOMiddleware
 from quart_socketio._namespace import Namespace
 from quart_socketio._types import TQueueClassMap
+from quart_socketio._utils import encode_data_as_form, parse_provided_data
 from quart_socketio.config.python_socketio import AsyncSocketIOConfig
 from quart_socketio.config.quart_socketio import Config
 from quart_socketio.test_client import SocketIOTestClient
@@ -349,7 +347,8 @@ class Controller:
         data = kwargs.get("data", kwargs.get("json", kwargs.get("form", {})))
 
         environ = self.server.get_environ(kwargs["sid"], namespace=kwargs.get("namespace", None))
-
+        form_data, files_data = await parse_provided_data(data)
+        body, content_type = await encode_data_as_form(form_data, files_data)
         try:
             req = Request(  # noqa: F841
                 method=environ["REQUEST_METHOD"],
@@ -364,47 +363,9 @@ class Controller:
             )
 
             req.sid = kwargs.get("sid", None)
-
-            data_refs = ["json", "data", "form"]
-
-            new_data = MultiDict()
-            new_files = MultiDict()
-            for k, v in list(data.items()):
-                if k.lower() == "files" or k == "file":
-                    if isinstance(v, dict) and v.get("Content-Type"):
-                        filename: str = str(v.get("filename", "file"))
-                        bytes_content = io.BytesIO(v.get("content"))
-                        content = FileStorage(
-                            bytes_content,
-                            content_type=v.get("Content-Type", "application/octet-stream"),
-                            filename=filename,
-                        )
-                        new_files.add(filename, content)
-
-                    elif isinstance(v, list):
-                        for file_data in v:
-                            if isinstance(file_data, dict) and file_data.get("Content-Type"):
-                                filename: str = str(file_data.get("filename", "file"))
-                                content = FileStorage(
-                                    io.BytesIO(file_data.get("content")),
-                                    content_type=file_data.get("Content-Type", "application/octet-stream"),
-                                    filename=filename,
-                                )
-                                new_files.add(filename, content)
-
-                elif any(k.lower() == dataref for dataref in data_refs):
-                    if isinstance(v, (list, dict, str)):
-                        if isinstance(v, dict):
-                            for key, value in list(v.items()):
-                                new_data.add(key, value)
-
-                        elif isinstance(v, list):
-                            for pos, item in enumerate(v):
-                                new_data.add(f"item{pos}", item)
-
-            req._data = new_data
-            req._files = new_files
-            req._form = new_data
+            req.body.set_result(body)
+            req.headers["Content-Type"] = content_type
+            req.headers["Content-Length"] = str(len(body))
 
         except Exception as e:  # noqa: F841
             raise

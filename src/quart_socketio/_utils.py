@@ -1,11 +1,71 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+import io
+from typing import TYPE_CHECKING, Any, Optional, Tuple
 
 from quart import current_app, request
+from werkzeug.datastructures import FileStorage, MultiDict
+from werkzeug.test import EnvironBuilder
 
 if TYPE_CHECKING:
     from quart_socketio import SocketIO
+
+
+async def parse_provided_data(data: dict) -> Tuple[MultiDict, MultiDict]:
+    """Tratamento de informações recebidas no emit."""
+    new_data = MultiDict()
+    new_files = MultiDict()
+    data_refs = ["json", "data", "form"]
+    for k, v in list(data.items()):
+        if k.lower() == "files" or k == "file":
+            if isinstance(v, dict) and v.get("Content-Type"):
+                filename: str = str(v.get("filename", "file"))
+                bytes_content = io.BytesIO(v.get("content"))
+                content = FileStorage(
+                    bytes_content,
+                    content_type=v.get("Content-Type", "application/octet-stream"),
+                    filename=filename,
+                )
+                new_files.add(filename, content)
+
+            elif isinstance(v, list):
+                for file_data in v:
+                    if isinstance(file_data, dict) and file_data.get("Content-Type"):
+                        filename: str = str(file_data.get("filename", "file"))
+                        content = FileStorage(
+                            io.BytesIO(file_data.get("content")),
+                            content_type=file_data.get("Content-Type", "application/octet-stream"),
+                            filename=filename,
+                        )
+                        new_files.add(filename, content)
+
+        elif any(k.lower() == dataref for dataref in data_refs):
+            if isinstance(v, (list, dict, str)):
+                if isinstance(v, dict):
+                    for key, value in list(v.items()):
+                        new_data.add(key, value)
+
+                elif isinstance(v, list):
+                    for pos, item in enumerate(v):
+                        new_data.add(f"item{pos}", item)
+
+    return new_data, new_files
+
+
+async def encode_data_as_form(data: dict, files: dict | None = None) -> tuple[bytes, str]:
+    if files:
+        # multipart/form-data
+        builder = EnvironBuilder(method="POST", data=data, files=files)
+    else:
+        # x-www-form-urlencoded
+        builder = EnvironBuilder(method="POST", data=data)
+
+    env = builder.get_environ()
+    content_length = int(env["CONTENT_LENGTH"])
+    body = env["wsgi.input"].read(content_length)
+    content_type = env["CONTENT_TYPE"]
+
+    return body, content_type
 
 
 async def emit(event: str, *args: Any, **kwargs: Any) -> None:
