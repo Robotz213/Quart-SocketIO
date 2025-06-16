@@ -17,7 +17,7 @@ develop-eggs
 lib
 lib64
 __pycache__
-
+dif_commit.txt
 # Installer logs
 pip-log.txt
 

@@ -49,16 +49,12 @@ async def parse_provided_data(data: dict) -> Tuple[MultiDict, MultiDict]:
                     for pos, item in enumerate(v):
                         new_data.add(f"item{pos}", item)
 
-    return new_data, new_files
+    return [new_data, new_files]
 
 
-async def encode_data_as_form(data: dict, files: dict | None = None) -> tuple[bytes, str]:
-    if files:
-        # multipart/form-data
-        builder = EnvironBuilder(method="POST", data=data, files=files)
-    else:
-        # x-www-form-urlencoded
-        builder = EnvironBuilder(method="POST", data=data)
+async def encode_data_as_form(data: MultiDict) -> tuple[bytes, str]:
+    # x-www-form-urlencoded
+    builder = EnvironBuilder(method="POST", data=data)
 
     env = builder.get_environ()
     content_length = int(env["CONTENT_LENGTH"])

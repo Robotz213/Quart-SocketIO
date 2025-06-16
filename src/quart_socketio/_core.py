@@ -8,12 +8,13 @@ from typing import TYPE_CHECKING, Any, AnyStr, Callable, Optional, Tuple, Union
 
 import quart
 import socketio
-from flask import Request as FlaskRequest  # noqa: F401
+from flask import Request as FlaskRequest
 from quart import Quart, Request, Websocket, session
-from quart import Request as QuartRequest  # noqa: F401
+from quart import Request as QuartRequest
 from quart import json as quart_json
-from quart.formparser import FormDataParser  # noqa: F401
-from quart.wrappers import Body  # noqa: F401
+from quart.formparser import FormDataParser
+from quart.wrappers import Body
+from werkzeug.datastructures import CombinedMultiDict
 from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
 from werkzeug.test import EnvironBuilder  # noqa: F401
@@ -347,8 +348,8 @@ class Controller:
         data = kwargs.get("data", kwargs.get("json", kwargs.get("form", {})))
 
         environ = self.server.get_environ(kwargs["sid"], namespace=kwargs.get("namespace", None))
-        form_data, files_data = await parse_provided_data(data)
-        body, content_type = await encode_data_as_form(form_data, files_data)
+        data_req = CombinedMultiDict(await parse_provided_data(data))
+        body, content_type = await encode_data_as_form(data_req)
         try:
             req = Request(  # noqa: F841
                 method=environ["REQUEST_METHOD"],
