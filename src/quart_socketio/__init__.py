@@ -149,7 +149,7 @@ class SocketIO(Controller):
         namespace_handler, namespace_args = self.server._get_namespace_handler(namespace, args)
 
         if handler:
-            environ = args[3]
+            environ = args[3] if len(args) > 3 else self.server.get_environ(sid, namespace)
 
             ignore_data = [sid, event, namespace, environ]
 
