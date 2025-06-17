@@ -8,12 +8,8 @@ from typing import TYPE_CHECKING, Any, AnyStr, Callable, Optional, Tuple, Union
 
 import quart
 import socketio
-from flask import Request as FlaskRequest
 from quart import Quart, Request, Websocket, session
-from quart import Request as QuartRequest
 from quart import json as quart_json
-from quart.formparser import FormDataParser
-from quart.wrappers import Body
 from werkzeug.datastructures import CombinedMultiDict
 from werkzeug.datastructures.headers import Headers
 from werkzeug.debug import DebuggedApplication
@@ -22,7 +18,7 @@ from werkzeug.test import EnvironBuilder  # noqa: F401
 from quart_socketio._middleare import QuartSocketIOMiddleware
 from quart_socketio._namespace import Namespace
 from quart_socketio._types import TQueueClassMap
-from quart_socketio._utils import encode_data_as_form, parse_provided_data
+from quart_socketio._utils import parse_provided_data
 from quart_socketio.config.python_socketio import AsyncSocketIOConfig
 from quart_socketio.config.quart_socketio import Config
 from quart_socketio.test_client import SocketIOTestClient
@@ -349,7 +345,6 @@ class Controller:
 
         environ = self.server.get_environ(kwargs["sid"], namespace=kwargs.get("namespace", None))
         data_req = CombinedMultiDict(await parse_provided_data(data))
-        body, content_type = await encode_data_as_form(data_req)
         try:
             req = Request(  # noqa: F841
                 method=environ["REQUEST_METHOD"],
@@ -364,10 +359,7 @@ class Controller:
             )
 
             req.sid = kwargs.get("sid", None)
-            req.body.set_result(body)
-            req.headers["Content-Type"] = content_type
-            req.headers["Content-Length"] = str(len(body))
-
+            req.socket_data = data_req
         except Exception as e:  # noqa: F841
             raise
 
