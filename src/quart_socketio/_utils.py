@@ -18,23 +18,30 @@ async def parse_provided_data(data: dict) -> Tuple[MultiDict, MultiDict]:
     data_refs = ["json", "data", "form"]
     for k, v in list(data.items()):
         if k.lower() == "files" or k == "file":
-            if isinstance(v, dict) and v.get("Content-Type"):
-                filename: str = str(v.get("filename", "file"))
-                bytes_content = io.BytesIO(v.get("content"))
-                content = FileStorage(
-                    bytes_content,
-                    content_type=v.get("Content-Type", "application/octet-stream"),
-                    filename=filename,
-                )
-                new_files.add(filename, content)
+            if isinstance(v, dict):
+                for _, value in list(v.items()):
+                    if not value.get("content_type"):
+                        continue
+
+                    filename: str = str(value.get("name", "file"))
+                    content_type = value.get("content_type", "application/octet-stream")
+                    content_length = value.get("content_length", None)
+                    bytes_content = io.BytesIO(value.get("file"))
+                    content = FileStorage(
+                        bytes_content,
+                        content_type=content_type,
+                        content_length=content_length,
+                        filename=filename,
+                    )
+                    new_files.add(filename, content)
 
             elif isinstance(v, list):
                 for file_data in v:
-                    if isinstance(file_data, dict) and file_data.get("Content-Type"):
-                        filename: str = str(file_data.get("filename", "file"))
+                    if isinstance(file_data, dict) and file_data.get("content_type"):
+                        filename: str = str(file_data.get("name", "file"))
                         content = FileStorage(
-                            io.BytesIO(file_data.get("content")),
-                            content_type=file_data.get("Content-Type", "application/octet-stream"),
+                            io.BytesIO(file_data.get("file")),
+                            content_type=file_data.get("content_type", "application/octet-stream"),
                             filename=filename,
                         )
                         new_files.add(filename, content)
