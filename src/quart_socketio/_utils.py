@@ -20,20 +20,21 @@ async def parse_provided_data(data: dict) -> Tuple[MultiDict, MultiDict]:
         if k.lower() == "files" or k == "file":
             if isinstance(v, dict):
                 for _, value in list(v.items()):
-                    if not value.get("content_type"):
-                        continue
+                    if value:
+                        if not value.get("content_type"):
+                            continue
 
-                    filename: str = str(value.get("name", "file"))
-                    content_type = value.get("content_type", "application/octet-stream")
-                    content_length = value.get("content_length", None)
-                    bytes_content = io.BytesIO(value.get("file"))
-                    content = FileStorage(
-                        bytes_content,
-                        content_type=content_type,
-                        content_length=content_length,
-                        filename=filename,
-                    )
-                    new_files.add(filename, content)
+                        filename: str = str(value.get("name", "file"))
+                        content_type = value.get("content_type", "application/octet-stream")
+                        content_length = value.get("content_length", None)
+                        bytes_content = io.BytesIO(value.get("file"))
+                        content = FileStorage(
+                            bytes_content,
+                            content_type=content_type,
+                            content_length=content_length,
+                            filename=filename,
+                        )
+                        new_files.add(filename, content)
 
             elif isinstance(v, list):
                 for file_data in v:
