@@ -76,7 +76,11 @@ async def _handle_files(
     elif isinstance(v, dict):
         content_type = v.get("content_type")
         filename = str(v.get("name", v.get("filename", await _generate_filename(content_type))))
-        content_byte = list(filter(lambda x: isinstance(x[1], (bytes, bytearray)), list(v.values())))[-1]
+        filter_content_byte = list(filter(lambda x: isinstance(x[1], (bytes, bytearray)), list(v.values())))
+        if len(filter_content_byte) == 0:
+            return
+
+        content_byte = filter_content_byte[-1]
 
         if not content_type or content_type == "application/octet-stream":
             _file = await _constructor_from_bytes(name=filename, content=content_byte)
