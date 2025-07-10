@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import io
+from contextlib import suppress
 from mimetypes import guess_extension
 from typing import IO, TYPE_CHECKING, Any, Optional, Tuple, TypedDict
 from uuid import uuid4
 
 from magic import Magic
 from quart import current_app, request
+from quart.formparser import FormDataParser
 from werkzeug.datastructures import FileStorage, MultiDict
 from werkzeug.test import EnvironBuilder
 
@@ -19,6 +21,14 @@ class FilesRequestData(TypedDict):
     file: IO[bytes]
     content_type: str
     content_length: int
+
+
+class FormParserQuartSocketio(FormDataParser):
+    async def parse(*args, **kwargs) -> Tuple[MultiDict, MultiDict]:  # noqa: ANN002, ANN003
+        with suppress(Exception):
+            return request.socket_data
+
+        return request.socket_data
 
 
 async def _generate_filename(typefile: str) -> str:
