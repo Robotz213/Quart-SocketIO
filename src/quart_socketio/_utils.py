@@ -76,7 +76,7 @@ async def _handle_files(
     elif isinstance(v, dict):
         content_type = v.get("content_type")
         filename = str(v.get("name", v.get("filename", await _generate_filename(content_type))))
-        filter_content_byte = list(filter(lambda x: isinstance(x[1], (bytes, bytearray)), list(v.values())))
+        filter_content_byte = list(filter(lambda x: isinstance(x, (bytes, bytearray)), list(v.values())))
         if len(filter_content_byte) == 0:
             return
 
