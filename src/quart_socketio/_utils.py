@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import io
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from mimetypes import guess_extension
+from typing import IO, TYPE_CHECKING, Any, Optional, Tuple, TypedDict
+from uuid import uuid4
 
+from magic import Magic
 from quart import current_app, request
 from werkzeug.datastructures import FileStorage, MultiDict
 from werkzeug.test import EnvironBuilder
@@ -11,51 +14,127 @@ if TYPE_CHECKING:
     from quart_socketio import SocketIO
 
 
+class FilesRequestData(TypedDict):
+    filename: str
+    file: IO[bytes]
+    content_type: str
+    content_length: int
+
+
+async def _generate_filename(typefile: str) -> str:
+    return f"{uuid4().hex[:10]}{guess_extension(typefile)}"
+
+
+async def _construct_file_object(stream: IO, filename: str, content_type: str, content_length: int) -> FilesRequestData:
+    return FilesRequestData(
+        file=stream,
+        filename=filename,
+        content_type=content_type,
+        content_length=content_length,
+    )
+
+
+async def _constructor_from_bytes(
+    content: bytes | bytearray, name: str | None = None
+) -> None | Tuple[str | FileStorage]:
+    content_type = Magic(mime=True).from_buffer(content)
+    if content_type == "application/octet-stream":
+        return None
+    stream = io.BytesIO(content)
+    content_length = len(content)
+    filename = name if name else await _generate_filename(content_type)
+    return await _get_file(
+        await _construct_file_object(
+            stream=stream,
+            filename=filename,
+            content_type=content_type,
+            content_length=content_length,
+        )
+    )
+
+
+async def _get_file(data: FilesRequestData) -> Tuple[str | FileStorage]:
+    content = FileStorage(
+        stream=data["file"],
+        filename=data["filename"],
+        name=data["filename"],
+        content_type=data["content_type"],
+        content_length=data["content_length"],
+    )
+
+    return data["filename"], content
+
+
+async def _handle_files(
+    k: str | None = None, v: dict | bytes | bytearray | None = None
+) -> Tuple[str | FileStorage] | None:
+    if isinstance(v, (bytes, bytearray)):
+        _file = await _constructor_from_bytes(name=k, content=v)
+        if _file:
+            return _file
+
+    elif isinstance(v, dict):
+        content_type = v.get("content_type")
+        filename = str(v.get("name", v.get("filename", await _generate_filename(content_type))))
+        content_byte = list(filter(lambda x: isinstance(x[1], (bytes, bytearray)), list(v.values())))[-1]
+
+        if not content_type or content_type == "application/octet-stream":
+            _file = await _constructor_from_bytes(name=filename, content=content_byte)
+            if _file:
+                return _file
+
+            return
+
+        content_length = int(v.get("content_length", len(content_byte)))
+        file_data = FilesRequestData(
+            file=io.BytesIO(content_byte),
+            filename=filename,
+            content_type=content_type,
+            content_length=content_length,
+        )
+
+        return await _get_file(file_data)
+
+
 async def parse_provided_data(data: dict) -> Tuple[MultiDict, MultiDict]:
     """Tratamento de informações recebidas no emit."""
     new_data = MultiDict()
     new_files = MultiDict()
     data_refs = ["json", "data", "form"]
     for k, v in list(data.items()):
-        if k.lower() == "files" or k == "file":
-            if isinstance(v, dict):
-                for _, value in list(v.items()):
-                    if value:
-                        if not value.get("content_type"):
-                            continue
-
-                        filename: str = str(value.get("name", "file"))
-                        content_type = value.get("content_type", "application/octet-stream")
-                        content_length = value.get("content_length", None)
-                        bytes_content = io.BytesIO(value.get("file"))
-                        content = FileStorage(
-                            bytes_content,
-                            content_type=content_type,
-                            content_length=content_length,
-                            filename=filename,
-                        )
-                        new_files.add(filename, content)
-
-            elif isinstance(v, list):
-                for file_data in v:
-                    if isinstance(file_data, dict) and file_data.get("content_type"):
-                        filename: str = str(file_data.get("name", "file"))
-                        content = FileStorage(
-                            io.BytesIO(file_data.get("file")),
-                            content_type=file_data.get("content_type", "application/octet-stream"),
-                            filename=filename,
-                        )
-                        new_files.add(filename, content)
+        if isinstance(v, (bytes, bytearray)) or (k.lower() == "files" or k.lower() == "file"):
+            _file = await _handle_files(k=k, v=v)
+            if _file:
+                new_files.add(_file[0], _file[1])
 
         elif any(k.lower() == dataref for dataref in data_refs):
-            if isinstance(v, (list, dict, str)):
+            if isinstance(v, (list, dict)):
                 if isinstance(v, dict):
                     for key, value in list(v.items()):
+                        if isinstance(value, (bytes, bytearray)):
+                            _file_from_dict = await _handle_files(k=key, v=value)
+                            if _file_from_dict:
+                                new_files.add(_file[0], _file[1])
+
+                            continue
                         new_data.add(key, value)
+
+                    continue
 
                 elif isinstance(v, list):
                     for pos, item in enumerate(v):
+                        if isinstance(item, (bytes, bytearray)):
+                            _file_from_list = await _handle_files(v=item)
+                            if _file_from_list:
+                                new_files.add(_file[0], _file[1])
+
+                            continue
+
                         new_data.add(f"item{pos}", item)
+
+                    continue
+
+            new_data.add(k, v)
 
     return [new_data, new_files]
 
