@@ -116,34 +116,16 @@ async def parse_provided_data(data: dict) -> Tuple[MultiDict, MultiDict]:
     new_files = MultiDict()
     data_refs = ["json", "data", "form"]
     for k, v in list(data.items()):
-        if isinstance(v, (bytes, bytearray)) or (k.lower() == "files" or k.lower() == "file"):
-            _file = await _handle_files(k=k, v=v)
-            if _file:
-                new_files.add(_file[0], _file[1])
-
-        elif any(k.lower() == dataref for dataref in data_refs):
+        if any(k.lower() == dataref for dataref in data_refs):
             if isinstance(v, (list, dict)):
                 if isinstance(v, dict):
                     for key, value in list(v.items()):
-                        if isinstance(value, (bytes, bytearray)):
-                            _file_from_dict = await _handle_files(k=key, v=value)
-                            if _file_from_dict:
-                                new_files.add(_file[0], _file[1])
-
-                            continue
                         new_data.add(key, value)
 
                     continue
 
                 elif isinstance(v, list):
                     for pos, item in enumerate(v):
-                        if isinstance(item, (bytes, bytearray)):
-                            _file_from_list = await _handle_files(v=item)
-                            if _file_from_list:
-                                new_files.add(_file[0], _file[1])
-
-                            continue
-
                         new_data.add(f"item{pos}", item)
 
                     continue
