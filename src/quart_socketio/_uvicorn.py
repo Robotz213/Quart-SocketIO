@@ -23,6 +23,21 @@ async def run_uvicorn(**kwargs: Any) -> uvicorn.Server:
     host = kwargs.pop("host", "0.0.0.0")  # noqa: S104
     port = kwargs.pop("port", 7000)
 
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level=log_level, log_config=log_config))
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_level=log_level,
+        log_config=log_config,
+        loop="uvloop",
+        ws="wsproto",
+        backlog=65535,
+        workers=8,
+        timeout_keep_alive=75,
+        limit_concurrency=10_000,
+        interface="asgi3",
+        lifespan="on",
+    )
+    server = uvicorn.Server(config)
 
     return await server.serve()
