@@ -4,7 +4,7 @@ import io  # noqa: F401
 import json  # noqa: F401
 import traceback
 from functools import wraps
-from typing import Any, AnyStr, Callable, Coroutine, Optional
+from typing import TYPE_CHECKING, Any, AnyStr, Optional
 
 import click  # noqa: F401
 import socketio
@@ -31,23 +31,25 @@ from ._utils import (
 )
 from .test_client import SocketIOTestClient
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+
 __all__ = [
+    "Namespace",
+    "SocketIOTestClient",
+    "call",
     "close_room",
     "disconnect",
     "emit",
-    "call",
-    "send",
     "join_room",
     "leave_room",
     "rooms",
-    "Namespace",
-    "SocketIOTestClient",
+    "send",
 ]
 
 
 class SocketIO(Controller):
-    """
-    SocketIO extension for Quart, enabling async WebSocket communication using the Socket.IO protocol.
+    """SocketIO extension for Quart, enabling async WebSocket communication using the Socket.IO protocol.
 
     This class provides integration between Quart and python-socketio, allowing you to handle real-time
     bi-directional communication between clients and your Quart application. It supports broadcasting,
@@ -142,14 +144,24 @@ class SocketIO(Controller):
         namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
 
         def get_handler() -> Callable[..., Any] | None:
-            filter_ = list(filter(lambda x: x[0] == event and x[2] == namespace, self.config.handlers))
+            filter_ = list(
+                filter(
+                    lambda x: x[0] == event and x[2] == namespace,
+                    self.config.handlers,
+                ),
+            )
             return filter_[0][1] if len(filter_) > 0 else None
 
         handler = get_handler()
-        namespace_handler, namespace_args = self.server._get_namespace_handler(namespace, args)
+        namespace_handler, namespace_args = self.server._get_namespace_handler(
+            namespace,
+            args,
+        )
 
         if handler:
-            environ = args[3] if len(args) > 3 else self.server.get_environ(sid, namespace)
+            environ = (
+                args[3] if len(args) > 3 else self.server.get_environ(sid, namespace)
+            )
 
             ignore_data = [sid, event, namespace, environ]
 
@@ -162,7 +174,10 @@ class SocketIO(Controller):
 
             if self.config.app.extensions.get("quart-jwt-extended"):
                 for item in data:
-                    header_name = self.config.app.config.get("JWT_HEADER_NAME", "Authorization")
+                    header_name = self.config.app.config.get(
+                        "JWT_HEADER_NAME",
+                        "Authorization",
+                    )
 
                     if isinstance(item, dict):
                         for k, _ in list(item.items()):
@@ -181,20 +196,24 @@ class SocketIO(Controller):
 
             if len(args) > 0:
                 for item in args:
-                    if isinstance(item, str) and getattr(self.reason, item.replace(" ", "_").upper(), None):
+                    if isinstance(item, str) and getattr(
+                        self.reason,
+                        item.replace(" ", "_").upper(),
+                        None,
+                    ):
                         kwrg.update({"reason": item})
                         break
 
             try:
-                return await handler(**kwrg)  # noqa: SLF001
+                return await handler(**kwrg)
             except TypeError as err:
                 if event != "disconnect":
                     raise TypeError(
                         f"Handler for event '{event}' in namespace '{namespace}' "
-                        f"must accept at least one argument, the sid of the client"
+                        f"must accept at least one argument, the sid of the client",
                     ) from err
 
-                return await handler(**kwrg)  # noqa: SLF001
+                return await handler(**kwrg)
 
         elif namespace_handler:
             return await namespace_handler.trigger_event(*namespace_args, **kwargs)
@@ -255,15 +274,15 @@ class SocketIO(Controller):
                 kwargs = kwargs.copy()
                 kwargs.update({"handler": handler})
                 try:
-                    return await self._handle_event(**kwargs)  # noqa: SLF001
+                    return await self._handle_event(**kwargs)
                 except TypeError as err:
                     if event != "disconnect":
                         raise TypeError(
                             f"Handler for event '{event}' in namespace '{namespace}' "
-                            f"must accept at least one argument, the sid of the client"
+                            f"must accept at least one argument, the sid of the client",
                         ) from err
 
-                    return await self._handle_event(**kwargs)  # noqa: SLF001
+                    return await self._handle_event(**kwargs)
 
             self.config.handlers.append((event, _handler, namespace))
             return handler
@@ -303,16 +322,15 @@ class SocketIO(Controller):
             # the decorator was invoked without arguments
             # args[0] is the decorated function
             return self.on(args[0].__name__)(args[0])
-        else:
-            # the decorator was invoked with arguments
-            def set_handler(handler):  # noqa: ANN001, ANN202
-                return self.on(handler.__name__, *args, **kwargs)(handler)
+        # the decorator was invoked with arguments
 
-            return set_handler
+        def set_handler(handler):  # noqa: ANN001, ANN202
+            return self.on(handler.__name__, *args, **kwargs)(handler)
+
+        return set_handler
 
     def on_namespace(self, namespace_handler: Namespace) -> None:
-        """
-        Register a custom namespace handler.
+        """Register a custom namespace handler.
 
         Args:
             namespace_handler (Namespace): The namespace handler instance to register.
@@ -326,7 +344,10 @@ class SocketIO(Controller):
         namespace_handler._set_socketio(self)  # noqa: SLF001
         self.register_namespace(namespace_handler)
 
-    def on_error(self, namespace: str = "/") -> Callable[[TExceptionHandler], TExceptionHandler]:
+    def on_error(
+        self,
+        namespace: str = "/",
+    ) -> Callable[[TExceptionHandler], TExceptionHandler]:
         """Define a custom error handler for SocketIO events.
 
         This decorator can be applied to a function that acts as an error
@@ -350,7 +371,10 @@ class SocketIO(Controller):
 
         return decorator
 
-    def on_error_default(self, exception_handler: Callable[..., Any]) -> Callable[..., Any]:
+    def on_error_default(
+        self,
+        exception_handler: Callable[..., Any],
+    ) -> Callable[..., Any]:
         """Define a default error handler for SocketIO events.
 
         This decorator can be applied to a function that acts as a default
@@ -367,7 +391,12 @@ class SocketIO(Controller):
         self.config.default_exception_handler = exception_handler
         return exception_handler
 
-    def on_event(self, event: str, handler: Callable[..., Any], namespace: str = "/") -> None:
+    def on_event(
+        self,
+        event: str,
+        handler: Callable[..., Any],
+        namespace: str = "/",
+    ) -> None:
         """Register a SocketIO event handler.
 
         ``on_event`` is the non-decorator version of ``'on'``.
@@ -455,9 +484,17 @@ class SocketIO(Controller):
                 original_namespace = getattr(request, "namespace", None)
 
             async def _callback_wrapper(
-                *args: str | int | bool, **kwargs: str | int | bool
+                *args: str | int | bool,
+                **kwargs: str | int | bool,
             ) -> Coroutine[Any, Any, Any]:
-                return await self._handle_event(original_callback, None, original_namespace, sid, *args, **kwargs)
+                return await self._handle_event(
+                    original_callback,
+                    None,
+                    original_namespace,
+                    sid,
+                    *args,
+                    **kwargs,
+                )
 
             if sid:
                 # the callback wrapper above will install a request context
@@ -514,11 +551,11 @@ class SocketIO(Controller):
         self,
         data: Any,
         json: bool = False,  # noqa: F811
-        namespace: Optional[str] = None,
-        to: Optional[str] = None,
-        callback: Optional[Callable[..., Any]] = None,
+        namespace: str | None = None,
+        to: str | None = None,
+        callback: Callable[..., Any] | None = None,
         include_self: bool = True,
-        skip_sid: Optional[str] = None,
+        skip_sid: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Send a server-generated SocketIO message.
@@ -573,7 +610,7 @@ class SocketIO(Controller):
                 **kwargs,
             )
 
-    async def close_room(self, room: str, namespace: Optional[str] = None) -> None:
+    async def close_room(self, room: str, namespace: str | None = None) -> None:
         """Close a room.
 
         This function removes any users that are in the given room and then
@@ -586,7 +623,12 @@ class SocketIO(Controller):
         """
         await self.server.close_room(room, namespace)
 
-    def start_background_task(self, target: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+    def start_background_task(
+        self,
+        target: Callable[..., Any],
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         """Start a background task using the appropriate async model.
 
         This is a utility function that applications can use to start a
