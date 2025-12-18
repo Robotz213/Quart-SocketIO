@@ -1,0 +1,3 @@
+virtualenvs.prompt = ".venv"
+python.installation-dir = "C:\\Python314\\python3.14t.exe "
+virtualenvs.in-project = true

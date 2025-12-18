@@ -1,134 +1,22 @@
 preview = true
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".ipynb_checkpoints",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pyenv",
-    ".pytest_cache",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    ".vscode",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "site-packages",
-    "venv",
-    "tests",
-    "Lib",
-    "examples/",
-]
-
-extend-exclude = ["hooks"]
 extend-include = ["*.ipynb"]
-line-length = 120
+line-length = 89
 indent-width = 4
 
+[lint.extend-per-file-ignores]
+"**/{tests,docs,tools}/*" = ["E402", "S", "D100", "D104", "ANN", "D417", "N818"]
+"*" = ["FIX"]
+
+"**/_hook.py" = ["INP001", "PLR6301"]
+"**/bots/**" = ["D"]
+
 [lint]
-select = ["A", "B", "C", "D", "E", "F", "G", "I", "N", "Q", "S", "T", "W"]
-
-extend-select = [
-    "ANN",
-    "ASYNC",
-    "COM",
-    "EXE",
-    "PYI",
-    "PT",
-    "RSE",
-    "ISC",
-    "ICN",
-    "LOG",
-    "PIE",
-    "SLF",
-    "SLOT",
-    "PGH",
-    "INT",
-    "TD",
-    "FIX",
-    "NPY",
-    "INP",
-    "UP",
-    "RET",
-    "BLE",
-    "FBT",
-    "CPY",
-    "DTZ",
-    "EM",
-    "FA",
-    "SIM",
-    "TID",
-    "TC",
-    "ARG",
-    "PTH",
-    "ERA",
-    "PD",
-    "PL",
-    "TRY",
-    "FLY",
-    "AIR",
-    "PERF",
-    "FURB",
-    "DOC",
-    "RUF",
-]
-
-ignore = [
-    "SLF001",
-    "COM812",
-    "D203",
-    "D211",
-    "D212",
-    "D213",
-    "S603",
-    "S607",
-    "S404",
-    "C901",
-    "ANN401",
-    "INP",
-    "UP",
-    "RET",
-    "BLE",
-    "FBT",
-    "CPY",
-    "DTZ",
-    "EM",
-    "FA",
-    "SIM",
-    "TID",
-    "TC",
-    "ARG",
-    "PTH",
-    "ERA",
-    "PD",
-    "PL",
-    "TRY",
-    "FLY",
-    "AIR",
-    "PERF",
-    "FURB",
-    "DOC",
-    "RUF",
-]
-
-
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["ALL"]
-unfixable = []
+select = ["ALL"]
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+ignore = ["CPY", "PLC2701", "PLC", "DOC", "D102", "PLR", "ARG", "PD"]
 
 
 [format]
@@ -156,4 +44,4 @@ docstring-code-format = true
 #
 # This only has an effect when the `docstring-code-format` setting is
 # enabled.
-docstring-code-line-length = "dynamic"
+docstring-code-line-length = 79
