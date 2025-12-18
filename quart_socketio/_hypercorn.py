@@ -1,6 +1,6 @@
-import asyncio
-import signal
-from typing import Any
+from quart_socketio.common.exceptions import raise_runtime_error
+
+type Any = any
 
 
 def run_hypercorn(**kwargs: Any) -> None:
@@ -14,7 +14,7 @@ def run_hypercorn(**kwargs: Any) -> None:
 
     # Ensure that the 'app' keyword argument is provided
     if "app" not in kwargs:
-        raise ValueError("The 'app' keyword argument must be provided.")
+        raise_runtime_error("The 'app' keyword argument must be provided.")
 
     app = kwargs.pop("app")
     config = Config()

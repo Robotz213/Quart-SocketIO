@@ -1,11 +1,11 @@
 preview = true
 extend-include = ["*.ipynb"]
-line-length = 89
+line-length = 79
 indent-width = 4
 
 [lint.extend-per-file-ignores]
 "**/{tests,docs,tools}/*" = ["E402", "S", "D100", "D104", "ANN", "D417", "N818"]
-"*" = ["ALL"]
+"*" = ["FIX", "PYI021"]
 
 "**/_hook.py" = ["INP001", "PLR6301"]
 "**/bots/**" = ["D"]
