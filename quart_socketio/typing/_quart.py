@@ -57,7 +57,7 @@ class CustomJsonClass(Protocol):
         ``.default()`` method to serialize additional types), specify it with
         the ``cls`` kwarg; otherwise ``JSONEncoder`` is used.
 
-        """
+        """  # noqa: E501
 
     @staticmethod
     def dumps(
@@ -113,7 +113,7 @@ class CustomJsonClass(Protocol):
         ``.default()`` method to serialize additional types), specify it with
         the ``cls`` kwarg; otherwise ``JSONEncoder`` is used.
 
-        """
+        """  # noqa: E501
 
     @staticmethod
     def load[T](
@@ -142,7 +142,7 @@ class CustomJsonClass(Protocol):
 
         To use a custom ``JSONDecoder`` subclass, specify it with the ``cls``
         kwarg; otherwise ``JSONDecoder`` is used.
-        """
+        """  # noqa: E501
 
     @staticmethod
     def loads[T](
@@ -186,4 +186,4 @@ class CustomJsonClass(Protocol):
 
         To use a custom ``JSONDecoder`` subclass, specify it with the ``cls``
         kwarg; otherwise ``JSONDecoder`` is used.
-        """
+        """  # noqa: E501
