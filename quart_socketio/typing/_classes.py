@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol
+from collections.abc import Callable
+from typing import TypeVar
 
 from engineio import AsyncServer as AsyncEIOServer
 from socketio import AsyncServer
@@ -12,4 +13,6 @@ class SocketIo(AsyncServer, AsyncEIOServer):
     eio: AsyncEIOServer
 
 
-class Function[T](Protocol[P, T]): ...
+T = TypeVar("T")
+
+type Function = Callable[P, T]

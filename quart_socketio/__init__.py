@@ -12,7 +12,9 @@ from quart import Quart, has_request_context
 from quart import websocket as request
 from quart.datastructures import FileStorage  # noqa: F401
 from quart.wrappers import Body  # noqa: F401
-from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError
+from socketio.exceptions import (
+    ConnectionRefusedError as SocketIOConnectionRefusedError,
+)
 
 from quart_socketio._core import Controller
 from quart_socketio.common.exceptions import QuartTypeError, raise_value_error
@@ -79,7 +81,7 @@ class SocketIO(Controller):
             filter_ = list(
                 filter(
                     lambda x: x[0] == event and x[2] == namespace,
-                    self.config.handlers,
+                    self.config["handlers"],
                 ),
             )
             return filter_[0][1] if len(filter_) > 0 else None
@@ -91,18 +93,26 @@ class SocketIO(Controller):
         )
 
         if handler:
-            environ = args[3] if len(args) > 3 else self.server.get_environ(sid, namespace)
+            environ = (
+                args[3]
+                if len(args) > 3
+                else self.server.get_environ(sid, namespace)
+            )
 
             ignore_data = [sid, event, namespace, environ]
 
             data = {}
             for x in args:
                 if not any(x == item for item in ignore_data):
-                    data.update({k: v for k, v in list(x.items()) if isinstance(x, dict) and k not in ignore_data})
+                    data.update({
+                        k: v
+                        for k, v in list(x.items())
+                        if isinstance(x, dict) and k not in ignore_data
+                    })
 
-            if self.config.app.extensions.get("quart-jwt-extended"):
+            if self.config["app"].extensions.get("quart-jwt-extended"):
                 for item in data:
-                    header_name = self.config.app.config.get(
+                    header_name = self.config["app"].config.get(
                         "JWT_HEADER_NAME",
                         "Authorization",
                     )
@@ -138,15 +148,18 @@ class SocketIO(Controller):
                 if event != "disconnect":
                     raise QuartTypeError(
                         message=(
-                            f"Handler for event '{event}' in namespace '{namespace}' "
-                            "must accept at least one argument, the sid of the client"
+                            f"Handler for event '{event}' in namespace '{namespace}' "  # noqa: E501
+                            "must accept at least one argument, the sid of the client"  # noqa: E501
                         ),
                     ) from err
 
                 return await handler(**kwrg)
 
         elif namespace_handler:
-            return await namespace_handler.trigger_event(*namespace_args, **kwargs)
+            return await namespace_handler.trigger_event(
+                *namespace_args,
+                **kwargs,
+            )
 
         return self.server.not_handled
 
@@ -159,8 +172,10 @@ class SocketIO(Controller):
 
         handler = kwargs.pop("handler", None)
 
-        async with app.request_context(await self.make_request(*args, *kwargs)):
-            if not self.config.manage_session:
+        async with app.request_context(
+            await self.make_request(*args, *kwargs),
+        ):
+            if not self.config["manage_session"]:
                 await self.handle_session(request.namespace)
 
             try:
@@ -171,7 +186,7 @@ class SocketIO(Controller):
             except Exception as e:  # noqa: BLE001
                 err_more = "".join(traceback.format_exception(e))  # noqa: F841
                 err = "".join(traceback.format_exception_only(e))
-                self.config.app.error(err)
+                self.config["app"].error(err)
                 return err
 
     def on(self, event: str, namespace: str = "/") -> Function:
@@ -209,14 +224,14 @@ class SocketIO(Controller):
                     if event != "disconnect":
                         raise QuartTypeError(
                             message=(
-                                f"Handler for event '{event}' in namespace '{namespace}' "
-                                f"must accept at least one argument, the sid of the client"
+                                f"Handler for event '{event}' in namespace '{namespace}' "  # noqa: E501
+                                f"must accept at least one argument, the sid of the client"  # noqa: E501
                             ),
                         ) from err
 
                     return await self._handle_event(**kwargs)
 
-            self.config.handlers.append((event, _handler, namespace))
+            self.config["handlers"].append((event, _handler, namespace))
             return handler
 
         return decorator
@@ -270,7 +285,7 @@ class SocketIO(Controller):
         Raises:
             ValueError: If the provided handler is not an instance of Namespace.
 
-        """
+        """  # noqa: E501
         if not isinstance(namespace_handler, Namespace):
             raise_value_error("Not a namespace instance.")
 
@@ -299,15 +314,15 @@ class SocketIO(Controller):
         def decorator(exception_handler: Function) -> Function:
             if not callable(exception_handler):
                 raise_value_error("exception_handler must be callable")
-            self.config.exception_handlers[namespace] = exception_handler
+            self.config["debug"][namespace] = exception_handler
             return exception_handler
 
         return decorator
 
     def on_error_default(
         self,
-        exception_handler: Callable[..., Any],
-    ) -> Callable[..., Any]:
+        exception_handler: Function,
+    ) -> Function:
         """Define a default error handler for SocketIO events.
 
         This decorator can be applied to a function that acts as a default
@@ -321,7 +336,7 @@ class SocketIO(Controller):
         if not callable(exception_handler):
             raise_value_error("exception_handler must be callable")
 
-        self.config.default_exception_handler = exception_handler
+        self.config["default_exception_handler"] = exception_handler
         return exception_handler
 
     def on_event[T](
@@ -478,7 +493,13 @@ class SocketIO(Controller):
         """  # noqa: RUF002
         namespace = kwargs.pop("namespace", "/")
         to = kwargs.pop("to", None) or kwargs.pop("room", None)
-        return await self.server.call(event, *args, namespace=namespace, to=to, **kwargs)
+        return await self.server.call(
+            event,
+            *args,
+            namespace=namespace,
+            to=to,
+            **kwargs,
+        )
 
     async def send(
         self,
@@ -544,7 +565,11 @@ class SocketIO(Controller):
                 **kwargs,
             )
 
-    async def close_room(self, room: str, namespace: str | None = None) -> None:
+    async def close_room(
+        self,
+        room: str,
+        namespace: str | None = None,
+    ) -> None:
         """Close a room.
 
         This function removes any users that are in the given room and then
@@ -586,7 +611,7 @@ class SocketIO(Controller):
         sleep without having to worry about using the correct call for the
         selected async mode.
 
-        """
+        """  # noqa: E501
         return self.server.sleep(seconds)
 
     async def send_push_promise(self, data: str, headers: Headers) -> None:

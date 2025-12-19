@@ -1,11 +1,38 @@
-def main():
-    print("Hello from quart-socketio!")
+import asyncio
+
+from quart import Quart
+
+from quart_socketio import SocketIO
+
+sio = SocketIO(allow_unsafe_werkzeug=True)
 
 
-if __name__ == "__main__":
-    main()
+app = Quart(__name__)
 
 
-from quart_socketio import Controller
+async def runapp() -> None:
 
-Controller()
+    async with app.app_context():
+        sio.init_app(app)
+
+    await sio.run(
+        app,
+        port=5000,
+    )
+
+
+@sio.on("connect")
+def connect(*args, **kwargs):
+
+    print(args, kwargs)
+    return []
+
+
+@sio.event(namespace="/bot")
+async def on_listagem(*args, **kwargs):
+
+    print(args, kwargs)
+    return []
+
+
+asyncio.run(runapp())

@@ -1,150 +1,14 @@
 from __future__ import annotations
 
-import io
-from contextlib import suppress
-from mimetypes import guess_extension
-from typing import IO, TYPE_CHECKING, Any, Optional, Tuple, TypedDict
-from uuid import uuid4
+from typing import TYPE_CHECKING
 
-from magic import Magic
 from quart import current_app, request
-from quart.formparser import FormDataParser
-from werkzeug.datastructures import FileStorage, MultiDict
-from werkzeug.test import EnvironBuilder
 
 if TYPE_CHECKING:
     from quart_socketio import SocketIO
 
 
-class FilesRequestData(TypedDict):
-    filename: str
-    file: IO[bytes]
-    content_type: str
-    content_length: int
-
-
-class FormParserQuartSocketio(FormDataParser):
-    async def parse(*args, **kwargs) -> Tuple[MultiDict, MultiDict]:  # noqa: ANN002, ANN003
-        with suppress(Exception):
-            return request.socket_data
-
-        return request.socket_data
-
-
-async def _generate_filename(typefile: str) -> str:
-    return f"{uuid4().hex[:10]}{guess_extension(typefile)}"
-
-
-async def _construct_file_object(stream: IO, filename: str, content_type: str, content_length: int) -> FilesRequestData:
-    return FilesRequestData(
-        file=stream,
-        filename=filename,
-        content_type=content_type,
-        content_length=content_length,
-    )
-
-
-async def _constructor_from_bytes(
-    content: bytes | bytearray, name: str | None = None
-) -> None | Tuple[str | FileStorage]:
-    content_type = Magic(mime=True).from_buffer(content)
-    if content_type == "application/octet-stream":
-        return None
-    stream = io.BytesIO(content)
-    content_length = len(content)
-    filename = name if name else await _generate_filename(content_type)
-    return await _get_file(
-        await _construct_file_object(
-            stream=stream,
-            filename=filename,
-            content_type=content_type,
-            content_length=content_length,
-        )
-    )
-
-
-async def _get_file(data: FilesRequestData) -> Tuple[str | FileStorage]:
-    content = FileStorage(
-        stream=data["file"],
-        filename=data["filename"],
-        name=data["filename"],
-        content_type=data["content_type"],
-        content_length=data["content_length"],
-    )
-
-    return data["filename"], content
-
-
-async def _handle_files(
-    k: str | None = None, v: dict | bytes | bytearray | None = None
-) -> Tuple[str | FileStorage] | None:
-    if isinstance(v, (bytes, bytearray)):
-        _file = await _constructor_from_bytes(name=k, content=v)
-        if _file:
-            return _file
-
-    elif isinstance(v, dict):
-        content_type = v.get("content_type")
-        filename = str(v.get("name", v.get("filename", await _generate_filename(content_type))))
-        filter_content_byte = list(filter(lambda x: isinstance(x, (bytes, bytearray)), list(v.values())))
-        if len(filter_content_byte) == 0:
-            return
-
-        content_byte = filter_content_byte[-1]
-
-        if not content_type or content_type == "application/octet-stream":
-            _file = await _constructor_from_bytes(name=filename, content=content_byte)
-            if _file:
-                return _file
-
-            return
-
-        content_length = int(v.get("content_length", len(content_byte)))
-        file_data = FilesRequestData(
-            file=io.BytesIO(content_byte),
-            filename=filename,
-            content_type=content_type,
-            content_length=content_length,
-        )
-
-        return await _get_file(file_data)
-
-
-async def parse_provided_data(data: dict) -> Tuple[MultiDict, MultiDict]:
-    """Tratamento de informações recebidas no emit."""
-    new_data = MultiDict()
-    new_files = MultiDict()
-    data_refs = ["json", "data", "form"]
-    for k, v in list(data.items()):
-        if any(k.lower() == dataref for dataref in data_refs):
-            if isinstance(v, (list, dict)):
-                if isinstance(v, dict):
-                    for key, value in list(v.items()):
-                        new_data.add(key, value)
-
-                    continue
-
-                elif isinstance(v, list):
-                    for pos, item in enumerate(v):
-                        new_data.add(f"item{pos}", item)
-
-                    continue
-
-            new_data.add(k, v)
-
-    return [new_data, new_files]
-
-
-async def encode_data_as_form(data: MultiDict) -> tuple[bytes, str]:
-    # x-www-form-urlencoded
-    builder = EnvironBuilder(method="POST", data=data)
-
-    env = builder.get_environ()
-    content_length = int(env["CONTENT_LENGTH"])
-    body = env["wsgi.input"].read(content_length)
-    content_type = env["CONTENT_TYPE"]
-
-    return body, content_type
+type Any = any
 
 
 async def emit(event: str, *args: Any, **kwargs: Any) -> None:
@@ -189,10 +53,7 @@ async def emit(event: str, *args: Any, **kwargs: Any) -> None:
                          single addressee. It is recommended to always leave
                          this parameter with its default value of ``False``.
     """
-    if "namespace" in kwargs:
-        namespace = kwargs["namespace"]
-    else:
-        namespace = request.namespace
+    namespace = kwargs.get("namespace", request.namespace)
     callback = kwargs.get("callback")
     broadcast = kwargs.get("broadcast")
     to = kwargs.pop("to", None) or kwargs.pop("room", None)
@@ -245,11 +106,8 @@ async def call(event: str, *args: Any, **kwargs: Any) -> Any:
                          single server process is used, or when there is a
                          single addressee. It is recommended to always leave
                          this parameter with its default value of ``False``.
-    """
-    if "namespace" in kwargs:
-        namespace = kwargs["namespace"]
-    else:
-        namespace = request.namespace
+    """  # noqa: RUF002
+    namespace = kwargs.get("namespace", request.namespace)
     to = kwargs.pop("to", None) or kwargs.pop("room", None)
     if to is None:
         to = request.sid
@@ -307,10 +165,7 @@ async def send(message: Any, **kwargs: Any) -> None:
                          parâmetro com seu valor padrão ``False``.
     """
     json = kwargs.get("json", False)
-    if "namespace" in kwargs:
-        namespace = kwargs["namespace"]
-    else:
-        namespace = request.namespace
+    namespace = kwargs.get("namespace", request.namespace)
     callback = kwargs.get("callback")
     broadcast = kwargs.get("broadcast")
     to = kwargs.pop("to", None) or kwargs.pop("room", None)
@@ -333,7 +188,11 @@ async def send(message: Any, **kwargs: Any) -> None:
     )
 
 
-async def join_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
+async def join_room(
+    room: str,
+    sid: str | None = None,
+    namespace: str | None = None,
+) -> None:
     """Join a room.
 
     This function puts the user in a room, under the current namespace. The
@@ -359,7 +218,11 @@ async def join_room(room: str, sid: Optional[str] = None, namespace: Optional[st
     await socketio.server.enter_room(sid, room, namespace=namespace)
 
 
-async def leave_room(room: str, sid: Optional[str] = None, namespace: Optional[str] = None) -> None:
+async def leave_room(
+    room: str,
+    sid: str | None = None,
+    namespace: str | None = None,
+) -> None:
     """Leave a room.
 
     This function removes the user from a room, under the current namespace.
@@ -384,7 +247,7 @@ async def leave_room(room: str, sid: Optional[str] = None, namespace: Optional[s
     await socketio.server.leave_room(sid, room, namespace=namespace)
 
 
-async def close_room(room: str, namespace: Optional[str] = None) -> None:
+async def close_room(room: str, namespace: str | None = None) -> None:
     """Close a room.
 
     This function removes any users that are in the given room and then deletes
@@ -399,7 +262,10 @@ async def close_room(room: str, namespace: Optional[str] = None) -> None:
     await socketio.server.close_room(room, namespace=namespace)
 
 
-async def rooms(sid: Optional[str] = None, namespace: Optional[str] = None) -> list[str]:
+def rooms(
+    sid: str | None = None,
+    namespace: str | None = None,
+) -> list[str]:
     """Return a list of the rooms the client is in.
 
     This function returns all the rooms the client has entered, including its
@@ -416,7 +282,12 @@ async def rooms(sid: Optional[str] = None, namespace: Optional[str] = None) -> l
     return socketio.server.rooms(sid, namespace=namespace)
 
 
-async def disconnect(sid: Optional[str] = None, namespace: Optional[str] = None, silent: bool = False) -> Any:
+async def disconnect(
+    sid: str | None = None,
+    namespace: str | None = None,
+    *,
+    silent: bool = False,
+) -> Any:
     """Disconnect the client.
 
     This function terminates the connection with the client. As a result of

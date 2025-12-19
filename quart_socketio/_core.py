@@ -20,7 +20,6 @@ from werkzeug.test import EnvironBuilder  # noqa: F401
 
 from quart_socketio._middleare import QuartSocketIOMiddleware
 from quart_socketio._namespace import Namespace
-from quart_socketio._utils import FormParserQuartSocketio, parse_provided_data
 from quart_socketio.common.exceptions import (
     raise_runtime_error,
     raise_value_error,
@@ -113,11 +112,11 @@ class Controller:
     ) -> None:
         app: Quart = kwargs.get("app")
         self.config = Config(app=app, **kwargs)
-
-        if app is not None or "message_queue" in self.config:
+        self.server_options = self.config
+        if app is not None or self.config.get("message_queue"):
             self.init_app(app=app, **kwargs)
 
-    async def init_app(
+    def init_app(
         self,
         app: Quart,
         **kwargs: Kw,
@@ -127,29 +126,30 @@ class Controller:
         :param app: The Quart application instance to initialize with SocketIO.
         :param kwargs: Additional keyword arguments for server configuration.
         """
+        self.app = app or self.config["app"]
         self.config.update(app=app)
         self.config.update(**kwargs)
 
-        if app is not None:
-            if not hasattr(app, "extensions"):
-                app.extensions = {}  # pragma: no cover
+        if not hasattr(app, "extensions"):
+            app.extensions = {}  # pragma: no cover
 
-            if "client_manager" not in kwargs:
-                self.client_manager(app)
+        if "client_manager" not in kwargs:
+            self.client_manager(app)
 
-            if (
-                self.server_options.json
-                and self.server_options.json == quart_json
-            ):
-                self.json_setting(app)
+        if (
+            self.server_options["json"]
+            and self.server_options["json"] == quart_json
+        ):
+            self.json_setting(app)
 
-            self.sockio_mw = QuartSocketIOMiddleware(
-                self.server,
-                app,
-                socketio_path=self.server_options.socketio_path,
-            )
-            app.asgi_app = self.sockio_mw
-            app.extensions["socketio"] = self
+        self.server = socketio.AsyncServer(**self.config)
+        self.sockio_mw = QuartSocketIOMiddleware(
+            self.server,
+            app,
+            socketio_path=self.server_options["socketio_path"],
+        )
+        app.asgi_app = self.sockio_mw
+        app.extensions["socketio"] = self
 
     async def run(
         self,
@@ -157,22 +157,22 @@ class Controller:
         **kwargs: type[Any],
     ) -> None:
         self.config.update(**kwargs)
-        self.server_options = self.server_options.update(**kwargs)
+        self.server_options = self.config
 
-        app = self.config.app
+        app = self.config["app"]
 
         if not app:
             raise_value_error(
                 "Quart application instance is required to run the server.",
             )
 
-        if self.config.extra_files:
-            self.config.reloader_options["extra_files"] = (
-                self.config.extra_files
-            )
+        if self.config["extra_files"]:
+            self.config["reloader_options"]["extra_files"] = self.config[
+                "extra_files"
+            ]
 
-        async_mode = self.config.launch_mode
-        app.debug = self.config.debug
+        async_mode = self.config["launch_mode"]
+        app.debug = self.config["debug"]
 
         await self.update_socketio_middleware(app)
 
@@ -187,19 +187,19 @@ class Controller:
         if async_mode == "uvicorn":
             from quart_socketio._uvicorn import run_uvicorn
 
-            await run_uvicorn(**self.config.to_dict())
+            await run_uvicorn(**self.config)
 
         elif async_mode == "hypercorn":
             from quart_socketio._hypercorn import run_hypercorn
 
-            await run_hypercorn(**self.config.to_dict())
+            await run_hypercorn(**self.config)
 
         elif self.server.eio.async_mode == "threading":
             await self.threading_mode()
 
     def client_manager(self, app: Quart) -> None:
-        url = self.server_options.message_queue
-        channel: str = self.server_options.channel
+        url = self.server_options["message_queue"]
+        channel: str = self.server_options["channel"]
         write_only: bool = app is None
         if url:
             queue_class = socketio.KombuManager
@@ -214,7 +214,7 @@ class Controller:
                     break
 
             queue = queue_class(url, channel=channel, write_only=write_only)
-            self.server_options.client_manager = queue
+            self.server_options["client_manager"] = queue
 
     def json_setting(self, app: Quart) -> None:
         """Json settings for the Quart-SocketIO server.
@@ -235,7 +235,7 @@ class Controller:
                 *args: str | int | bool,
                 **kwargs: str | int | bool,
             ) -> str:
-                with app.app_context():
+                async with app.app_context():
                     return quart_json.dumps(*args, **kwargs)
 
             @staticmethod
@@ -270,7 +270,7 @@ class Controller:
         #     o
         #    Quart-SocketIO WebSocket handler
 
-        if app.debug and self.config.launch_mode != "threading":
+        if app.debug and self.config["launch_mode"] != "threading":
             self.sockio_mw.wsgi_app = DebuggedApplication(
                 self.sockio_mw.wsgi_app,
                 evalex=True,
@@ -339,11 +339,11 @@ class Controller:
         is properly saved and restored during Socket.IO events.
         :param environ: The ASGI environment dictionary.
         """
-        app = self.config.app
+        app = self.config["app"]
 
         session_obj: _ManagedSession | Any = (
             environ.setdefault("saved_session", _ManagedSession(session))
-            if self.config.manage_session
+            if self.config["manage_session"]
             else session._get_current_object()  # noqa: SLF001
         )
         ctx = (
@@ -352,7 +352,7 @@ class Controller:
             and hasattr(quart.globals, "websocket_ctx")
             else quart._websocket_ctx_stack.top  # noqa: SLF001
         )
-        if self.config.manage_session:
+        if self.config["manage_session"]:
             ctx.session = session_obj
 
         # when Quart is managing the user session, it needs to save it
@@ -361,15 +361,13 @@ class Controller:
             app.session_interface.save_session(app, session_obj, resp)
 
     async def make_request(self, **kwargs: AnyStr) -> Request:
-        kwargs = kwargs or {}
-        data = kwargs.get("data", kwargs.get("json", kwargs.get("form", {})))
 
         environ = self.server.get_environ(
             kwargs["sid"],
-            namespace=kwargs.get("namespace", None),
+            namespace=kwargs.get("namespace"),
         )
-        data_req = await parse_provided_data(data)
-        req = Request(
+
+        return Request(
             method=environ["REQUEST_METHOD"],
             scheme=environ["asgi.scope"].get("scheme", "http"),
             path=environ["PATH_INFO"],
@@ -380,12 +378,6 @@ class Controller:
             scope=environ["asgi.scope"],
             send_push_promise=self.send_push_promise,
         )
-        req.form_data_parser_class = FormParserQuartSocketio
-
-        req.sid = kwargs.get("sid", None)
-        req.socket_data = data_req
-
-        return req
 
     async def make_websocket(self, **kwargs: AnyStr) -> Request:
         kwargs = kwargs or {}
@@ -453,7 +445,7 @@ class Controller:
 
         namespace_handler._set_server(self)  # noqa: SLF001
         self.server.register_namespace(namespace_handler)
-        self.config.namespace_handlers.append(namespace_handler)
+        self.config["namespace_handlers"].append(namespace_handler)
 
     async def unregister_namespace(self, namespace_handler: Namespace) -> None:
         """Unregister a namespace handler object.
@@ -468,4 +460,4 @@ class Controller:
             raise_runtime_error("SocketIO server is not initialized")
         namespace_handler._set_server(None)  # noqa: SLF001
         self.server.unregister_namespace(namespace_handler)
-        self.config.namespace_handlers.remove(namespace_handler)
+        self.config["namespace_handlers"].remove(namespace_handler)

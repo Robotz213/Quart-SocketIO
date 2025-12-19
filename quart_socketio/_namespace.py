@@ -1,20 +1,32 @@
 from __future__ import annotations
 
-import traceback
-from typing import TYPE_CHECKING, Any, AnyStr, Callable
+from typing import TYPE_CHECKING
 
-from flask.sessions import SessionMixin
 from quart import Quart, request
 from socketio import AsyncServer
 from socketio import Namespace as BaseNamespace
-from socketio.exceptions import ConnectionRefusedError as SocketIOConnectionRefusedError
+
+from quart_socketio.common.exceptions import QuartSocketioError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from flask.sessions import SessionMixin
+
+    from quart_socketio.typing import Function
+    from quart_socketio.typing._types import P
+
     from . import SocketIO
+
+type Any = any
 
 
 class Namespace(BaseNamespace):
-    def __init__(self, namespace: str = None, socketio: SocketIO = None) -> None:
+    def __init__(
+        self,
+        namespace: str | None = None,
+        socketio: SocketIO = None,
+    ) -> None:
         super().__init__(namespace)
         self.socketio = socketio
 
@@ -32,8 +44,8 @@ class Namespace(BaseNamespace):
 
     async def trigger_event(
         self,
-        *args: AnyStr | int | bool | dict[str, AnyStr],
-        **kwargs: AnyStr | int | bool | dict[str, AnyStr],
+        *args: Any,
+        **kwargs: Any,
     ) -> Any:
         """Dispatch an event to the proper handler method.
 
@@ -42,74 +54,22 @@ class Namespace(BaseNamespace):
         method can be overridden if special dispatching rules are needed, or if
         having a single method that catches all events is desired.
         """
-        config = self.socketio.config
-
         sid: str = args[2]
         event: str = args[0] if len(args) > 1 and args[0] != "*" else sid
-        namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
+        _namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
 
-        def get_handler() -> Callable[..., Any] | None:
+        def get_handler[T]() -> Callable[P, T]:
             return getattr(self, "on_" + (event or ""), None)
 
         handler = get_handler()
-        server_environ = self.server.get_environ(sid, namespace=namespace)
         if handler:
-            environ = server_environ
-
-            ignore_data = [sid, event, namespace, server_environ]
-
-            data = {}
-            for x in args:
-                if not any(x == item for item in ignore_data):
-                    if isinstance(x, dict) and x not in ignore_data:
-                        for k, v in list(x.items()):
-                            if k not in ignore_data:
-                                data[k] = v
-
-            # data = {
-            #     k: v
-            #     for x in args
-            #     if not any(x == item for item in ignore_data)
-            #     for k, v in list(x.items())
-            #     if isinstance(x, dict) and k not in ignore_data
-            # }
-
-            if config.app.extensions.get("quart-jwt-extended"):
-                for item in data:
-                    header_name = config.app.config.get("JWT_HEADER_NAME", "Authorization")
-
-                    if isinstance(item, dict):
-                        for k, _ in list(item.items()):
-                            if header_name in k:
-                                environ[header_name] = item[k]
-                                break
-
-            kwrg = kwargs.copy()
-            kwrg.update({
-                "handler": handler,
-                "event": event,
-                "namespace": namespace,
-                "sid": sid,
-                "environ": environ,
-                "data": data,
-            })
-
-            if len(args) > 0:
-                for item in args:
-                    if isinstance(item, str) and getattr(self.server.reason, item.replace(" ", "_").upper(), None):
-                        kwrg.update({"reason": item})
-                        break
-
             try:
-                return await self._handle_event(**kwrg)
+                return await self._handle_event(*args, **kwargs)
             except TypeError as err:
                 if event != "disconnect":
-                    raise TypeError(
-                        f"Handler for event '{event}' in namespace '{namespace}' "
-                        f"must accept at least one argument, the sid of the client"
-                    ) from err
+                    raise QuartSocketioError(err) from err
 
-                return await self._handle_event(**kwrg)
+                return await self._handle_event(*args, **kwargs)
 
         return self.server.not_handled
 
@@ -122,20 +82,10 @@ class Namespace(BaseNamespace):
         handler = kwargs.pop("handler", None)
 
         async with app.request_context(await self.make_request(**kwargs)):
-            async with app.websocket_context(await self.make_websocket(**kwargs)):
-                if not config.manage_session:
-                    await self.handle_session(request.namespace)
+            if not config.manage_session:
+                await self.handle_session(request.namespace)
 
-                try:
-                    return await handler()
-
-                except SocketIOConnectionRefusedError:
-                    raise  # let this error bubble up to python-socketio
-                except Exception as e:
-                    err_more = "".join(traceback.format_exception(e))  # noqa: F841
-                    err = "".join(traceback.format_exception_only(e))
-                    config.app.logger.error(err)
-                    return err
+            return await handler()
 
     def _set_server(self, socketio: SocketIO) -> None:
         from . import SocketIO
@@ -152,28 +102,51 @@ class Namespace(BaseNamespace):
     def emit(
         self,
         event: str,
-        data: dict = None,
-        room: str = None,
+        data: dict | None = None,
+        room: str | None = None,
+        *,
         include_self: bool = True,
-        namespace: str = None,
-        callback: callable = None,
+        namespace: str | None = None,
+        callback: Function = None,
     ) -> None:
         """Emit a custom event to one or more connected clients."""
         return self.socketio.emit(
-            event, data, room=room, include_self=include_self, namespace=namespace or self.namespace, callback=callback
+            event,
+            data,
+            room=room,
+            include_self=include_self,
+            namespace=namespace or self.namespace,
+            callback=callback,
         )
 
     def send(
-        self, data: dict, room: str = None, include_self: bool = True, namespace: str = None, callback: callable = None
+        self,
+        data: dict,
+        room: str | None = None,
+        *,
+        include_self: bool = True,
+        namespace: str | None = None,
+        callback: Function = None,
     ) -> None:
         """Send a message to one or more connected clients."""
         return self.socketio.send(
-            data, room=room, include_self=include_self, namespace=namespace or self.namespace, callback=callback
+            data,
+            room=room,
+            include_self=include_self,
+            namespace=namespace or self.namespace,
+            callback=callback,
         )
 
-    def close_room(self, room: str, namespace: str = None) -> None:
+    def close_room(self, room: str, namespace: str | None = None) -> None:
         """Close a room."""
-        return self.socketio.close_room(room=room, namespace=namespace or self.namespace)
+        return self.socketio.close_room(
+            room=room,
+            namespace=namespace or self.namespace,
+        )
 
     async def save_session(self, sid: str, session: SessionMixin) -> None:
-        return await self.server.save_session(sid, session, namespace=self.namespace)
+        return await self.server.save_session(
+            sid,
+            session,
+            namespace=self.namespace,
+        )

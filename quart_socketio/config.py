@@ -13,10 +13,9 @@ class Config(UserDict):
 
     def __init__(self, **kwargs: Any) -> None:  # noqa: D107
 
-        if not kwargs:
-            kwargs = DEFAULTS
+        super().__init__(DEFAULTS)
 
-        super().__init__(kwargs)
+        self.update(**kwargs)
 
 
 DEFAULTS = {
@@ -36,7 +35,7 @@ DEFAULTS = {
     "exception_handlers": {},
     "default_exception_handler": None,
     "manage_session": True,
-    "log_config": {},
+    "log_config": None,
     "log_level": 20,
     "client_manager": None,
     "logger": False,
