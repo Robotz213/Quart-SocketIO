@@ -116,6 +116,17 @@ class Controller:
         if app is not None or self.config.get("message_queue"):
             self.init_app(app=app, **kwargs)
 
+    def configure_server(self) -> socketio.AsyncServer:
+        server = socketio.AsyncServer(**self.config)
+        for handler in self.config["handlers"]:
+            server.on(handler[0], handler[1], namespace=handler[2])
+
+        for namespace_handler in self.config["namespace_handlers"]:
+            server.register_namespace(namespace_handler)
+
+        server._trigger_event = self._trigger_event  # noqa: SLF001
+        return server
+
     def init_app(
         self,
         app: Quart,
@@ -142,7 +153,7 @@ class Controller:
         ):
             self.json_setting(app)
 
-        self.server = socketio.AsyncServer(**self.config)
+        self.server = self.configure_server()
         self.sockio_mw = QuartSocketIOMiddleware(
             self.server,
             app,

@@ -36,7 +36,7 @@ DEFAULTS = {
     "default_exception_handler": None,
     "manage_session": True,
     "log_config": None,
-    "log_level": 20,
+    "log_level": 0,
     "client_manager": None,
     "logger": False,
     "socketio_path": "/socket.io",
@@ -57,7 +57,7 @@ DEFAULTS = {
     "cors_credentials": True,
     "monitor_clients": True,
     "transports": ["polling", "websocket"],
-    "engineio_logger": False,
+    "engineio_logger": True,
     "message_queue": None,
     "channel": "quart-socketio",
 }
