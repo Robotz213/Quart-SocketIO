@@ -57,7 +57,7 @@ DEFAULTS = {
     "cors_credentials": True,
     "monitor_clients": True,
     "transports": ["polling", "websocket"],
-    "engineio_logger": True,
+    "engineio_logger": False,
     "message_queue": None,
     "channel": "quart-socketio",
 }

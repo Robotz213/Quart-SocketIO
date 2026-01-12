@@ -4,7 +4,7 @@ import io  # noqa: F401
 import json  # noqa: F401
 import traceback
 from functools import wraps
-from typing import TYPE_CHECKING, ParamSpec
+from typing import TYPE_CHECKING
 
 import click  # noqa: F401
 import socketio
@@ -55,8 +55,6 @@ __all__ = [
 
 type Any = any
 
-P = ParamSpec("P")
-
 
 class SocketIO(Controller):
     reason: socketio.AsyncServer.reason = socketio.AsyncServer.reason
@@ -77,7 +75,7 @@ class SocketIO(Controller):
         event: str = args[0] if len(args) > 1 and args[0] != "*" else sid
         namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
 
-        def get_handler[T]() -> Callable[P, T] | None:
+        def get_handler[**P, T]() -> Callable[P, T] | None:
             filter_ = list(
                 filter(
                     lambda x: x[0] == event and x[2] == namespace,
@@ -163,8 +161,12 @@ class SocketIO(Controller):
 
         return self.server.not_handled
 
-    async def _handle_event[T](
+    async def _handle_event[**P, T](
         self,
+        event: str,
+        namespace: str | None,
+        sid: str | None,
+        environ: dict[str, Any] | None = None,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> T:
@@ -172,14 +174,13 @@ class SocketIO(Controller):
 
         handler = kwargs.pop("handler", None)
 
-        async with app.request_context(
-            await self.make_request(*args, *kwargs),
-        ):
+        request_ctx_sio = await self.make_request(environ=environ)
+        async with app.request_context(request_ctx_sio):
             if not self.config["manage_session"]:
                 await self.handle_session(request.namespace)
 
             try:
-                return await handler()
+                return await handler(*args, **kwargs)
 
             except SocketIOConnectionRefusedError:
                 raise  # let this error bubble up to python-socketio
@@ -236,7 +237,7 @@ class SocketIO(Controller):
 
         return decorator
 
-    def event[T](
+    def event[**P, T](
         self,
         *args: P.args,
         **kwargs: P.kwargs,
@@ -339,7 +340,7 @@ class SocketIO(Controller):
         self.config["default_exception_handler"] = exception_handler
         return exception_handler
 
-    def on_event[T](
+    def on_event[**P, T](
         self,
         event: str,
         handler: Callable[P, T],
@@ -370,7 +371,7 @@ class SocketIO(Controller):
         """
         self.on(event=event, namespace=namespace)(handler)
 
-    async def emit[T](
+    async def emit[**P, T](
         self,
         *args: Any,
         event: Any,

@@ -205,9 +205,6 @@ class Controller:
 
             await run_hypercorn(**self.config)
 
-        elif self.server.eio.async_mode == "threading":
-            await self.threading_mode()
-
     def client_manager(self, app: Quart) -> None:
         url = self.server_options["message_queue"]
         channel: str = self.server_options["channel"]
@@ -371,12 +368,10 @@ class Controller:
             resp = app.response_class()
             app.session_interface.save_session(app, session_obj, resp)
 
-    async def make_request(self, **kwargs: AnyStr) -> Request:
-
-        environ = self.server.get_environ(
-            kwargs["sid"],
-            namespace=kwargs.get("namespace"),
-        )
+    async def make_request(
+        self,
+        environ: dict[str, AnyStr | dict[str, Any]],
+    ) -> Request:
 
         return Request(
             method=environ["REQUEST_METHOD"],

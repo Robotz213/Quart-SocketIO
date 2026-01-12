@@ -1,6 +1,6 @@
 import asyncio
 
-from quart import Quart
+from quart import Quart, Response, jsonify
 
 from quart_socketio import SocketIO
 
@@ -17,12 +17,12 @@ async def runapp() -> None:
 
     await sio.run(
         app,
-        port=5000,
+        port=5001,
     )
 
 
 @sio.on("connect")
-def connect(*args, **kwargs):
+async def connect(*args, **kwargs):
 
     print(args, kwargs)
     return []
@@ -33,6 +33,12 @@ async def on_listagem(*args, **kwargs):
 
     print(args, kwargs)
     return []
+
+
+@app.route("/start")
+async def start() -> Response:
+
+    return jsonify({"status": "started"})
 
 
 asyncio.run(runapp())
