@@ -1,39 +1,7 @@
-from __future__ import annotations
-
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
-
-import engineio
-import socketio
-
-TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
-TFunction = TypeVar("TFunction", bound=Callable[..., Any])
-TCorsAllowOrigin = Optional[Union[str, List[str], Callable[[], bool]]]
-TTupleLiteral = Tuple[str]
-TQueueClasses = Union[
-    Type[socketio.AsyncRedisManager],
-    Type[socketio.KafkaManager],
-    Type[socketio.ZmqManager],
-    Type[socketio.KombuManager],
-]
-
-TQueueClass = TypeVar("TQueueClass", bound=TQueueClasses)
-
-TQueueClassMap = Dict[TTupleLiteral, TQueueClasses]
-TExceptionHandler = TypeVar("TExceptionHandler", bound=Callable[..., Any])
+from typing import Protocol
 
 
-class ASyncServerType(socketio.AsyncServer):
-    """
-    Type extension for socketio.AsyncServer with an explicit engineio.AsyncServer attribute.
-
-    Inherits from socketio.AsyncServer and adds a type annotation for the 'eio' attribute,
-    which represents the underlying Engine.IO AsyncServer instance.
-    """
-
-    eio: engineio.AsyncServer
-
-
-class CustomJsonClass:
+class CustomJsonClass(Protocol):
     @staticmethod
     def dump(
         obj,  # noqa: ANN001
@@ -49,7 +17,7 @@ class CustomJsonClass:
         default=None,  # noqa: ANN001
         sort_keys=False,  # noqa: ANN001
         **kw,  # noqa: ANN003
-    ) -> Any:
+    ) -> str:
         """Serialize ``obj`` as a JSON formatted stream to ``fp`` (a ``.write()``-supporting file-like object).
 
         If ``skipkeys`` is true then ``dict`` keys that are not basic types
@@ -89,15 +57,12 @@ class CustomJsonClass:
         ``.default()`` method to serialize additional types), specify it with
         the ``cls`` kwarg; otherwise ``JSONEncoder`` is used.
 
-        """
-        raise NotImplementedError(
-            "CustomJsonClass must be subclassed and initialized with a custom JSON implementation"
-        )
+        """  # noqa: E501
 
     @staticmethod
-    def dumps(  # noqa: ANN205
+    def dumps(
         obj,  # noqa: ANN001
-        *,  # noqa: ANN001
+        *,
         skipkeys=False,  # noqa: ANN001
         ensure_ascii=True,  # noqa: ANN001
         check_circular=True,  # noqa: ANN001
@@ -108,7 +73,7 @@ class CustomJsonClass:
         default=None,  # noqa: ANN001
         sort_keys=False,  # noqa: ANN001
         **kw,  # noqa: ANN003
-    ):
+    ) -> str:
         """Serialize ``obj`` to a JSON formatted ``str``.
 
         If ``skipkeys`` is true then ``dict`` keys that are not basic types
@@ -148,23 +113,12 @@ class CustomJsonClass:
         ``.default()`` method to serialize additional types), specify it with
         the ``cls`` kwarg; otherwise ``JSONEncoder`` is used.
 
-        """
-        raise NotImplementedError(
-            "CustomJsonClass must be subclassed and initialized with a custom JSON implementation"
-        )
+        """  # noqa: E501
 
     @staticmethod
-    def detect_encoding(  # noqa: ANN205
-        b,  # noqa: ANN001
-    ):
-        raise NotImplementedError(
-            "CustomJsonClass must be subclassed and initialized with a custom JSON implementation"
-        )
-
-    @staticmethod
-    def load(  # noqa: ANN205
+    def load[T](
         fp,  # noqa: ANN001
-        *,  # noqa: ANN001
+        *,
         cls=None,  # noqa: ANN001
         object_hook=None,  # noqa: ANN001
         parse_float=None,  # noqa: ANN001
@@ -172,9 +126,8 @@ class CustomJsonClass:
         parse_constant=None,  # noqa: ANN001
         object_pairs_hook=None,  # noqa: ANN001
         **kw,  # noqa: ANN003
-    ):
-        """
-        Deserialize ``fp`` (a ``.read()``-supporting file-like object containing a JSON document) to a Python object.
+    ) -> T:
+        """Deserialize ``fp`` (a ``.read()``-supporting file-like object containing a JSON document) to a Python object.
 
         ``object_hook`` is an optional function that will be called with the
         result of any object literal decode (a ``dict``). The return value of
@@ -189,13 +142,10 @@ class CustomJsonClass:
 
         To use a custom ``JSONDecoder`` subclass, specify it with the ``cls``
         kwarg; otherwise ``JSONDecoder`` is used.
-        """
-        raise NotImplementedError(
-            "CustomJsonClass must be subclassed and initialized with a custom JSON implementation"
-        )
+        """  # noqa: E501
 
     @staticmethod
-    def loads(  # noqa: ANN205
+    def loads[T](
         s,  # noqa: ANN001
         *,
         cls=None,  # noqa: ANN001
@@ -205,7 +155,7 @@ class CustomJsonClass:
         parse_constant=None,  # noqa: ANN001
         object_pairs_hook=None,  # noqa: ANN001
         **kw,  # noqa: ANN003
-    ):
+    ) -> T:
         """Deserialize ``s`` (a ``str``, ``bytes`` or ``bytearray`` instance containing a JSON document) to a object.
 
         ``object_hook`` is an optional function that will be called with the
@@ -236,7 +186,4 @@ class CustomJsonClass:
 
         To use a custom ``JSONDecoder`` subclass, specify it with the ``cls``
         kwarg; otherwise ``JSONDecoder`` is used.
-        """
-        raise NotImplementedError(
-            "CustomJsonClass must be subclassed and initialized with a custom JSON implementation"
-        )
+        """  # noqa: E501

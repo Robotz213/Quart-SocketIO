@@ -1,6 +1,6 @@
 [project]
-name = "Quart-SocketIO"
-version = "1.0.0.dev0"
+name = "quart_socketio"
+version = "0.1.0"
 authors = [
     { name = "Nicholas Silva", email = "nicholas@robotz.dev" },
     { name = "Miguel Grinberg", email = "miguel.grinberg@gmail.com" },
@@ -13,40 +13,28 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "quart",
     "python-socketio >= 5.12.0",
-    "uvicorn (>=0.34.3,<0.35.0)",
-    "chardet (>=5.2.0,<6.0.0)",
+    "uvicorn>=0.34.3",
+    "hypercorn>=0.18.0",
 ]
 
-[project.readme]
-file = "README.md"
-content-type = "text/markdown"
 
 [project.urls]
 Homepage = "https://github.com/Robotz213/Quart-SocketIO"
 "Bug Tracker" = "https://github.com/Robotz213/Quart-SocketIO/issues"
 
-[project.optional-dependencies]
-docs = ["sphinx"]
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
 
 [tool.setuptools]
 zip-safe = false
 include-package-data = true
 
-[tool.setuptools.package-dir]
-"" = "src"
-
-[tool.setuptools.packages.find]
-where = ["src"]
-namespaces = false
-
-
-[tool.poetry.group.dev.dependencies]
-quart-session = ">=3.0.0,<4.0.0"
-hypercorn = "^0.17.3"
 
 [build-system]
 requires = ["setuptools>=61.2"]
