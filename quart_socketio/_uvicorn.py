@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 from logging.config import dictConfig
 from typing import TYPE_CHECKING
 
@@ -95,4 +96,5 @@ async def run_uvicorn(**kwargs: Kw) -> Server:
     )
     server = uvicorn.Server(config)
 
-    return await server.serve()
+    with suppress(KeyboardInterrupt):
+        return await server.serve()

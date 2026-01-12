@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import suppress
 
 from quart import Quart, Response, jsonify
 
@@ -22,17 +23,8 @@ async def runapp() -> None:
 
 
 @sio.on("connect")
-async def connect(*args, **kwargs):
-
-    print(args, kwargs)
-    return []
-
-
-@sio.event(namespace="/bot")
-async def on_listagem(*args, **kwargs):
-
-    print(args, kwargs)
-    return []
+async def connect(*args, **kwargs) -> None:
+    print("Client connected!")
 
 
 @app.route("/start")
@@ -41,4 +33,5 @@ async def start() -> Response:
     return jsonify({"status": "started"})
 
 
-asyncio.run(runapp())
+with suppress(KeyboardInterrupt):
+    asyncio.run(runapp())

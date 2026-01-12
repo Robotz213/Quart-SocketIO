@@ -5,10 +5,7 @@ indent-width = 4
 
 [lint.extend-per-file-ignores]
 "**/{tests,docs,tools}/*" = ["E402", "S", "D100", "D104", "ANN", "D417", "N818"]
-"*" = ["FIX", "PYI021"]
-
-"**/_hook.py" = ["INP001", "PLR6301"]
-"**/bots/**" = ["D"]
+"*" = ["FIX", "PYI021", "D"]
 
 [lint]
 select = ["ALL"]

@@ -5,7 +5,6 @@ from asyncio import Event
 from collections.abc import Callable
 from typing import (
     TYPE_CHECKING,
-    AnyStr,
     Literal,
     overload,
 )
@@ -15,7 +14,6 @@ import socketio
 from quart import Quart, Request, Websocket, session
 from quart import json as quart_json
 from werkzeug.datastructures.headers import Headers
-from werkzeug.debug import DebuggedApplication
 from werkzeug.test import EnvironBuilder  # noqa: F401
 
 from quart_socketio._middleare import QuartSocketIOMiddleware
@@ -40,13 +38,14 @@ if TYPE_CHECKING:
         Channel,
         HypercornServer,
         Kw,
-        LaunchMode,
         QueueClasses,
         QueueClassMap,
         SocketIo,
         Transports,
     )
     from quart_socketio.typing._quart import CustomJsonClass
+
+type Any = any
 
 
 class Controller:
@@ -73,7 +72,6 @@ class Controller:
         extra_files: list[str],
         reloader_options: dict[str, Any],
         server_options: dict[str, Any],
-        launch_mode: LaunchMode,
         server: SocketIo,
         namespace_handlers: list[Any],
         exception_handlers: dict[str, Any],
@@ -182,28 +180,11 @@ class Controller:
                 "extra_files"
             ]
 
-        async_mode = self.config["launch_mode"]
         app.debug = self.config["debug"]
 
-        await self.update_socketio_middleware(app)
+        from quart_socketio._uvicorn import run_uvicorn
 
-        if async_mode not in ["uvicorn", "hypercorn", "threading"]:
-            raise_value_error(
-                (
-                    f"Invalid launch mode '{async_mode}'."
-                    "Supported modes are 'uvicorn', 'hypercorn'."
-                ),
-            )
-
-        if async_mode == "uvicorn":
-            from quart_socketio._uvicorn import run_uvicorn
-
-            await run_uvicorn(**self.config)
-
-        elif async_mode == "hypercorn":
-            from quart_socketio._hypercorn import run_hypercorn
-
-            await run_hypercorn(**self.config)
+        await run_uvicorn(**self.config)
 
     def client_manager(self, app: Quart) -> None:
         url = self.server_options["message_queue"]
@@ -250,48 +231,18 @@ class Controller:
             async def loads(
                 *args: str | int | bool,
                 **kwargs: str | int | bool,
-            ) -> dict[str, AnyStr | int | bool]:
+            ) -> dict[str, Any | int | bool]:
                 async with app.app_context():
                     return quart_json.loads(*args, **kwargs)
 
         self.config["json"] = QuartSafeJson
 
-    async def update_socketio_middleware(self, app: Quart) -> None:
-        """Update the SocketIO middleware with the given app and configuration.
-
-        Put the debug middleware between the SocketIO middleware
-        and the Quart application instance
-        """
-        #    mw1    mw2    mw3   Quart app
-        #     o ---- o ---- o ---- o
-        #     /
-        #    o Quart-SocketIO
-        #     \  middleware
-        #     o
-        #    Quart-SocketIO WebSocket handler
-
-        #    dbg-mw  mw1   mw2    mw3  Quart app
-        #     o ---- o ---- o ---- o ---- o
-        #     /
-        #    o Quart-SocketIO
-        #     \  middleware
-        #     o
-        #    Quart-SocketIO WebSocket handler
-
-        if app.debug and self.config["launch_mode"] != "threading":
-            self.sockio_mw.wsgi_app = DebuggedApplication(
-                self.sockio_mw.wsgi_app,
-                evalex=True,
-            )
-
     @classmethod
-    def load_headers(cls, environ: dict[str, AnyStr]) -> Headers:  # noqa: C901
+    def load_headers(cls, environ: dict[str, Any]) -> Headers:  # noqa: C901
         """Load headers from the ASGI scope."""
         headers = Headers()
 
-        io_headers: list[tuple[AnyStr, AnyStr]] = environ["asgi.scope"][
-            "headers"
-        ]
+        io_headers: list[tuple[Any, Any]] = environ["asgi.scope"]["headers"]
         for item1, item2 in io_headers:
             header_key = item1
             header_value = item2
@@ -370,7 +321,7 @@ class Controller:
 
     async def make_request(
         self,
-        environ: dict[str, AnyStr | dict[str, Any]],
+        environ: dict[str, Any | dict[str, Any]],
     ) -> Request:
 
         return Request(
@@ -385,7 +336,7 @@ class Controller:
             send_push_promise=self.send_push_promise,
         )
 
-    async def make_websocket(self, **kwargs: AnyStr) -> Request:
+    async def make_websocket(self, **kwargs: Any) -> Request:
         kwargs = kwargs or {}
         environ = self.server.get_environ(
             kwargs["sid"],
