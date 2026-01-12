@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64  # noqa: F401
 from asyncio import Event
 from collections.abc import Callable
 from typing import (
@@ -14,15 +13,14 @@ import socketio
 from quart import Quart, Request, Websocket, session
 from quart import json as quart_json
 from werkzeug.datastructures.headers import Headers
-from werkzeug.test import EnvironBuilder  # noqa: F401
 
-from quart_socketio._middleare import QuartSocketIOMiddleware
-from quart_socketio._namespace import Namespace
 from quart_socketio.common.exceptions import (
     raise_runtime_error,
     raise_value_error,
 )
 from quart_socketio.config import Config
+from quart_socketio.middleare import QuartSocketIOMiddleware
+from quart_socketio.namespace import Namespace
 from quart_socketio.test_client import SocketIOTestClient
 
 from ._manager import _ManagedSession

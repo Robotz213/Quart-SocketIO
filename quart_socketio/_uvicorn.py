@@ -12,6 +12,11 @@ if TYPE_CHECKING:
 
     from quart_socketio.typing import Kw
 
+ACCESS_FMT = (
+    "%(levelprefix)s %(asctime)s %(client_addr)s"
+    ' - "%(request_line)s" %(status_code)s'
+)
+
 
 async def run_uvicorn(**kwargs: Kw) -> Server:
     """Run Uvicorn server with the given keyword arguments.
@@ -44,7 +49,7 @@ async def run_uvicorn(**kwargs: Kw) -> Server:
                 },
                 "access": {
                     "()": "uvicorn.logging.AccessFormatter",
-                    "fmt": '%(levelprefix)s %(asctime)s %(client_addr)s - "%(request_line)s" %(status_code)s',
+                    "fmt": ACCESS_FMT,
                     "datefmt": "%Y-%m-%d %H:%M:%S",
                 },
             },

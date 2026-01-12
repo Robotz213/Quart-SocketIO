@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-import io  # noqa: F401
-import json  # noqa: F401
 import traceback
 from functools import wraps
 from typing import TYPE_CHECKING
 
-import click  # noqa: F401
 import socketio
 from quart import Quart, has_request_context
 from quart import websocket as request
-from quart.datastructures import FileStorage  # noqa: F401
-from quart.wrappers import Body  # noqa: F401
 from socketio.exceptions import (
     ConnectionRefusedError as SocketIOConnectionRefusedError,
 )
@@ -19,18 +14,7 @@ from socketio.exceptions import (
 from quart_socketio.common.exceptions import QuartTypeError, raise_value_error
 from quart_socketio.core import Controller
 
-from ._namespace import Namespace
-from ._utils import (
-    call,
-    close_room,
-    disconnect,
-    emit,
-    join_room,
-    leave_room,
-    rooms,
-    send,
-)
-from .test_client import SocketIOTestClient
+from .namespace import Namespace
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
@@ -38,19 +22,6 @@ if TYPE_CHECKING:
     from werkzeug.datastructures.headers import Headers
 
     from quart_socketio.typing import Function
-
-__all__ = [
-    "Namespace",
-    "SocketIOTestClient",
-    "call",
-    "close_room",
-    "disconnect",
-    "emit",
-    "join_room",
-    "leave_room",
-    "rooms",
-    "send",
-]
 
 
 type Any = any
@@ -506,7 +477,7 @@ class SocketIO(Controller):
         self,
         *args: Any,
         data: Any,
-        json: bool = False,  # noqa: F811
+        json: bool = False,
         namespace: str | None = None,
         to: str | None = None,
         callback: Callable[..., Any] | None = None,

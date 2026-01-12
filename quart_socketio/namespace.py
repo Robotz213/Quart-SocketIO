@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import traceback
 from typing import TYPE_CHECKING
 
 from quart import Quart, request
@@ -7,6 +8,7 @@ from socketio import AsyncServer
 from socketio import Namespace as BaseNamespace
 
 from quart_socketio.common.exceptions import QuartSocketioError
+from quart_socketio.main import SocketIOConnectionRefusedError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -75,17 +77,32 @@ class Namespace(BaseNamespace):
 
     async def _handle_event(
         self,
+        event: str,
+        namespace: str | None,
+        sid: str | None,
+        environ: dict[str, Any] | None = None,
+        *args: Any,
         **kwargs: Any,
     ) -> Any:
-        app: Quart = self.socketio.config.app
-        config = self.socketio.config
+        app: Quart = self.sockio_mw.quart_app
+
         handler = kwargs.pop("handler", None)
 
-        async with app.request_context(await self.make_request(**kwargs)):
-            if not config.manage_session:
+        request_ctx_sio = await self.make_request(environ=environ)
+        async with app.request_context(request_ctx_sio):
+            if not self.config["manage_session"]:
                 await self.handle_session(request.namespace)
 
-            return await handler()
+            try:
+                return await handler(*args, **kwargs)
+
+            except SocketIOConnectionRefusedError:
+                raise  # let this error bubble up to python-socketio
+            except Exception as e:  # noqa: BLE001
+                err_more = "".join(traceback.format_exception(e))  # noqa: F841
+                err = "".join(traceback.format_exception_only(e))
+                self.config["app"].error(err)
+                return err
 
     def _set_server(self, socketio: SocketIO) -> None:
         from . import SocketIO

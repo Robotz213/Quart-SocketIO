@@ -1,5 +1,3 @@
-# noqa: D100
-
 from collections import UserDict
 
 from quart_socketio.typing._config import wrap_config
@@ -11,7 +9,7 @@ type Any = any
 class Config(UserDict):
     """Configuration for the Quart-SocketIO application."""
 
-    def __init__(self, **kwargs: Any) -> None:  # noqa: D107
+    def __init__(self, **kwargs: Any) -> None:
 
         super().__init__(DEFAULTS)
 
