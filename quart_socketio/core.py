@@ -158,7 +158,7 @@ class Controller:
         app.asgi_app = self.sockio_mw
         app.extensions["socketio"] = self
 
-    async def run(
+    def run(
         self,
         app: Quart = None,
         **kwargs: type[Any],
@@ -182,7 +182,7 @@ class Controller:
 
         from quart_socketio._uvicorn import run_uvicorn
 
-        await run_uvicorn(**self.config)
+        run_uvicorn(**self.config)
 
     def client_manager(self, app: Quart) -> None:
         url = self.server_options["message_queue"]

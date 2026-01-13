@@ -23,7 +23,11 @@ class QuartSocketIOMiddleware(ASGIApp):
         self.quart_app = quart_app
         self.mode = quart_app.config.get("SOCKETIO_MODE", "modern")
         self.trusted_hops = quart_app.config.get("SOCKETIO_TRUSTED_HOPS", 1)
-        super().__init__(socketio_app, quart_app.asgi_app, socketio_path=socketio_path)
+        super().__init__(
+            socketio_app,
+            quart_app.asgi_app,
+            socketio_path=socketio_path,
+        )
 
     async def __call__(
         self,
@@ -42,7 +46,11 @@ class QuartSocketIOMiddleware(ASGIApp):
             if (
                 self.mode == "modern"
                 and (
-                    value := _get_trusted_value(b"forwarded", headers, self.trusted_hops)
+                    value := _get_trusted_value(
+                        b"forwarded",
+                        headers,
+                        self.trusted_hops,
+                    )
                 )
                 is not None
             ):
@@ -101,7 +109,8 @@ def _get_trusted_value(
     for header_name, header_value in headers:
         if header_name.lower() == name:
             values.extend([
-                value.decode("latin1").strip() for value in header_value.split(b",")
+                value.decode("latin1").strip()
+                for value in header_value.split(b",")
             ])
 
     if len(values) >= trusted_hops:

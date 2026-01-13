@@ -18,7 +18,7 @@ ACCESS_FMT = (
 )
 
 
-async def run_uvicorn(**kwargs: Kw) -> Server:
+def run_uvicorn(**kwargs: Kw) -> Server:
     """Run Uvicorn server with the given keyword arguments.
 
     This function is a wrapper around `uvicorn.run`
@@ -100,6 +100,6 @@ async def run_uvicorn(**kwargs: Kw) -> Server:
         log_level=logging.INFO,
     )
     server = uvicorn.Server(config)
-
+    uvicorn.run()
     with suppress(KeyboardInterrupt):
-        return await server.serve()
+        return server.run()
