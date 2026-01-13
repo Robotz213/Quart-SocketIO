@@ -20,7 +20,7 @@ from quart_socketio.common.exceptions import (
     raise_value_error,
 )
 from quart_socketio.config import Config
-from quart_socketio.middleare import QuartSocketIOMiddleware
+from quart_socketio.middleare import QuartSocketIOMiddleware as Middleware
 from quart_socketio.namespace import Namespace
 from quart_socketio.test_client import SocketIOTestClient
 
@@ -150,14 +150,17 @@ class Controller:
         ):
             self.json_setting(app)
 
+        socketio_path = self.server_options["socketio_path"]
         self.server = self.configure_server()
 
+        kw = {
+            "socketio_app": self.server,
+            "quart_app": app,
+            "ocketio_path": socketio_path,
+        }
+        self.sockio_mw = Middleware(**kw)
         app.asgi_app = ProxyHeadersMiddleware(app.asgi_app)
-        app.asgi_app = QuartSocketIOMiddleware(
-            self.server,
-            app,
-            socketio_path=self.server_options["socketio_path"],
-        )
+        app.asgi_app = self.sockio_mw
         app.extensions["socketio"] = self
 
     def run(

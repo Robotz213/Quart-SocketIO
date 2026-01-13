@@ -13,8 +13,7 @@ if TYPE_CHECKING:
     from quart_socketio.typing import Kw
 
 ACCESS_FMT = (
-    "%(levelprefix)s %(asctime)s %(client_addr)s"
-    ' - "%(request_line)s" %(status_code)s'
+    '%(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
 )
 
 

@@ -4,8 +4,8 @@ import traceback
 from typing import TYPE_CHECKING
 
 from quart import Quart, request
+from socketio import AsyncNamespace as BaseNamespace
 from socketio import AsyncServer
-from socketio import Namespace as BaseNamespace
 
 from quart_socketio.common.exceptions import QuartSocketioError
 from quart_socketio.main import SocketIOConnectionRefusedError
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from flask.sessions import SessionMixin
 
     from quart_socketio.typing import Function
-    from quart_socketio.typing._types import P
 
     from . import SocketIO
 
@@ -60,7 +59,7 @@ class Namespace(BaseNamespace):
         event: str = args[0] if len(args) > 1 and args[0] != "*" else sid
         _namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
 
-        def get_handler[T]() -> Callable[P, T]:
+        def get_handler[**P, T]() -> Callable[P, T]:
             return getattr(self, "on_" + (event or ""), None)
 
         handler = get_handler()
