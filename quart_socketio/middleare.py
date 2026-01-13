@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from copy import deepcopy
 from typing import TYPE_CHECKING
@@ -93,8 +94,8 @@ class QuartSocketIOMiddleware(ASGIApp):
                 ]
                 headers.append((b"host", host.encode()))
                 scope["headers"] = headers
-
-        await super().__call__(scope, receive, send)
+        task = asyncio.create_task(super().__call__(scope, receive, send))
+        return await task
 
 
 def _get_trusted_value(

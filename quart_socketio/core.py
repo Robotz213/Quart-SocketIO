@@ -12,7 +12,6 @@ import quart
 import socketio
 from quart import Quart, Request, Websocket, session
 from quart import json as quart_json
-from uvicorn.middleware.asgi2 import ASGI2Middleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from werkzeug.datastructures.headers import Headers
 
@@ -153,7 +152,6 @@ class Controller:
 
         self.server = self.configure_server()
 
-        app.asgi_app = ASGI2Middleware(app.asgi_app)
         app.asgi_app = ProxyHeadersMiddleware(app.asgi_app)
         app.asgi_app = QuartSocketIOMiddleware(
             self.server,
