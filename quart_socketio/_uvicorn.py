@@ -98,6 +98,9 @@ def run_uvicorn(**kwargs: Kw) -> Server:
         access_log=True,
         log_config=log_config,
         log_level=logging.INFO,
+        loop="asyncio",
+        ws="websockets",
+        interface="asgi3",
     )
     server = uvicorn.Server(config)
     with suppress(KeyboardInterrupt):
