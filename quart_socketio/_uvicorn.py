@@ -100,6 +100,5 @@ def run_uvicorn(**kwargs: Kw) -> Server:
         log_level=logging.INFO,
     )
     server = uvicorn.Server(config)
-    uvicorn.run()
     with suppress(KeyboardInterrupt):
         return server.run()
