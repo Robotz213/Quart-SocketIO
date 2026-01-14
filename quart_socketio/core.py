@@ -408,7 +408,6 @@ class Controller:
         if self.server is None:
             raise_runtime_error("SocketIO server is not initialized")
 
-        namespace_handler._set_server(self)  # noqa: SLF001
         self.server.register_namespace(namespace_handler)
         self.config["namespace_handlers"].append(namespace_handler)
 
