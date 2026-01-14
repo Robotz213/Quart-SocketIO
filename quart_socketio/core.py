@@ -325,9 +325,10 @@ class Controller:
     async def make_request(
         self,
         environ: dict[str, Any | dict[str, Any]],
+        sid: str,
     ) -> Request:
 
-        return Request(
+        request = Request(
             method=environ["REQUEST_METHOD"],
             scheme=environ["asgi.scope"].get("scheme", "http"),
             path=environ["PATH_INFO"],
@@ -338,6 +339,10 @@ class Controller:
             scope=environ["asgi.scope"],
             send_push_promise=self.send_push_promise,
         )
+
+        request.sid = sid
+
+        return request
 
     async def make_websocket(self, **kwargs: Any) -> Request:
         kwargs = kwargs or {}

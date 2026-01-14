@@ -79,19 +79,6 @@ class SocketIO(Controller):
                         if isinstance(x, dict) and k not in ignore_data
                     })
 
-            if self.config["app"].extensions.get("quart-jwt-extended"):
-                for item in data:
-                    header_name = self.config["app"].config.get(
-                        "JWT_HEADER_NAME",
-                        "Authorization",
-                    )
-
-                    if isinstance(item, dict):
-                        for k, _ in list(item.items()):
-                            if header_name in k:
-                                environ[header_name] = item[k]
-                                break
-
             kwrg = kwargs.copy()
             kwrg.update({
                 "event": event,
@@ -145,7 +132,7 @@ class SocketIO(Controller):
 
         handler = kwargs.pop("handler", None)
 
-        request_ctx_sio = await self.make_request(environ=environ)
+        request_ctx_sio = await self.make_request(environ=environ, sid=sid)
         async with app.request_context(request_ctx_sio):
             if not self.config["manage_session"]:
                 await self.handle_session(request.namespace)
