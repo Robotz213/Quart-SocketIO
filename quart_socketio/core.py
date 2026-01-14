@@ -156,7 +156,7 @@ class Controller:
         kw = {
             "socketio_app": self.server,
             "quart_app": app,
-            "ocketio_path": socketio_path,
+            "socketio_path": socketio_path,
         }
         self.sockio_mw = Middleware(**kw)
         app.asgi_app = ProxyHeadersMiddleware(app.asgi_app)
