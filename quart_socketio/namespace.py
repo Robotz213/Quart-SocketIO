@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import traceback
-from asyncio import iscoroutine
+from asyncio import iscoroutinefunction
 from typing import TYPE_CHECKING
 
 from quart import Quart, request
@@ -105,7 +105,7 @@ class Namespace(BaseNamespace):
         app: Quart = self.sockio_mw.quart_app
         if event == "disconnect":
             try:
-                if iscoroutine(handler):
+                if iscoroutinefunction(handler):
                     return await handler(**data)
 
                 return handler(**data)
@@ -124,7 +124,7 @@ class Namespace(BaseNamespace):
                 await self.handle_session(request.namespace)
 
             try:
-                if iscoroutine(handler):
+                if iscoroutinefunction(handler):
                     return await handler(**data)
 
                 return handler(**data)

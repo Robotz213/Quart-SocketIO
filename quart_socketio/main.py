@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import traceback
-from asyncio import iscoroutine
 from functools import wraps
+from inspect import iscoroutinefunction
 from typing import TYPE_CHECKING, ClassVar
 
 import socketio
@@ -82,7 +82,7 @@ class SocketIO(Controller):
                         break
 
             try:
-                if iscoroutine(handler):
+                if iscoroutinefunction(handler):
                     return await handler(**kwrg)
 
                 return handler(**kwrg)
@@ -125,7 +125,7 @@ class SocketIO(Controller):
         app: Quart = self.sockio_mw.quart_app
         if event == "disconnect":
             try:
-                if iscoroutine(handler):
+                if iscoroutinefunction(handler):
                     return await handler(**data)
 
                 return handler(**data)
@@ -144,7 +144,7 @@ class SocketIO(Controller):
                 await self.handle_session(request.namespace)
 
             try:
-                if iscoroutine(handler):
+                if iscoroutinefunction(handler):
                     return await handler(**data)
 
                 return handler(**data)
