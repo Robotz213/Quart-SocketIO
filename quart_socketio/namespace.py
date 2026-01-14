@@ -119,6 +119,10 @@ class Namespace(BaseNamespace):
 
         self._set_server(socketio)
 
+    def _set_socketio(self, socketio: SocketIO) -> None:
+
+        self._set_server(socketio)
+
     def emit(
         self,
         event: str,
