@@ -314,7 +314,9 @@ class SocketIO(Controller):
         })
 
         if data:
-            kwrg["data"] = data
+            kwrg["data"] = {
+                "data": data,
+            }
 
         return kwrg
 
