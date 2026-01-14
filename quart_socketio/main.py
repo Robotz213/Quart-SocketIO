@@ -248,7 +248,7 @@ class SocketIO(Controller):
         if not isinstance(namespace_handler, Namespace):
             raise_value_error("Not a namespace instance.")
 
-        namespace_handler._set_socketio(self)  # noqa: SLF001
+        namespace_handler.set_socketio(self)
         self.register_namespace(namespace_handler)
 
     def on_error(
