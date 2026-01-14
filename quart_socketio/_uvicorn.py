@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import platform
 from contextlib import suppress
 from logging.config import dictConfig
 from typing import TYPE_CHECKING
@@ -90,6 +91,10 @@ def run_uvicorn(**kwargs: Kw) -> Server:
         }
         dictConfig(log_config)
 
+    loop = "asyncio"
+    if platform.system() != "Windows":
+        loop = "uvloop"
+
     config = uvicorn.Config(
         app,
         host=host,
@@ -97,7 +102,7 @@ def run_uvicorn(**kwargs: Kw) -> Server:
         access_log=True,
         log_config=log_config,
         log_level=logging.INFO,
-        loop="asyncio",
+        loop=loop,
         ws="websockets",
         interface="asgi3",
     )
