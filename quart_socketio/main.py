@@ -138,7 +138,11 @@ class SocketIO(Controller):
                 self.config["app"].error(err)
                 return err
 
-        request_ctx_sio = await self.make_request(environ=environ, sid=sid)
+        request_ctx_sio = await self.make_request(
+            environ=environ,
+            sid=sid,
+            namespace=namespace,
+        )
         async with app.request_context(request_ctx_sio):
             if not self.config["manage_session"]:
                 await self.handle_session(request.namespace)
@@ -289,7 +293,7 @@ class SocketIO(Controller):
     ) -> dict[str, Any]:
 
         ignore_data = [sid, event, namespace, environ, handler]
-        data = {}
+        data: dict[str, Any] = {}
         for x in args:
             if all(
                 (
@@ -314,10 +318,7 @@ class SocketIO(Controller):
         })
 
         if data:
-            kwrg["data"] = {
-                "data": data,
-            }
-
+            kwrg["data"] = data
         return kwrg
 
     def on_namespace(self, namespace_handler: Namespace) -> None:

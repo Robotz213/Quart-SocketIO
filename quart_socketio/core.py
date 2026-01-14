@@ -326,6 +326,7 @@ class Controller:
         self,
         environ: dict[str, Any | dict[str, Any]],
         sid: str,
+        namespace: str,
     ) -> Request:
 
         request = Request(
@@ -341,6 +342,7 @@ class Controller:
         )
 
         request.sid = sid
+        request.namespace = namespace
 
         return request
 

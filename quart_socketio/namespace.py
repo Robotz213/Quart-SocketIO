@@ -118,7 +118,11 @@ class Namespace(BaseNamespace):
                 app.logger.exception(err)
                 return err
 
-        request_ctx_sio = await self.make_request(environ=environ, sid=sid)
+        request_ctx_sio = await self.make_request(
+            environ=environ,
+            sid=sid,
+            namespace=namespace,
+        )
         async with app.request_context(request_ctx_sio):
             if not self.socketio.config["manage_session"]:
                 await self.handle_session(request.namespace)
