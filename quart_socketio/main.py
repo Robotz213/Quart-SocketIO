@@ -309,11 +309,12 @@ class SocketIO(Controller):
             "namespace": namespace,
             "sid": sid,
             "environ": environ,
-            "data": {
-                "data": data,
-            },
+            "data": {},
             "handler": handler,
         })
+
+        if data:
+            kwrg["data"] = data
 
         return kwrg
 
