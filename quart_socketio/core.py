@@ -48,11 +48,11 @@ type Any = any
 
 
 class Controller:
-    server: SocketIo | None = None
-    asgi_server: Server | HypercornServer | None = None
+    server: SocketIo = None
+    asgi_server: Server | HypercornServer = None
     shutdown_event = Event()
     config: Config = None
-    sockio_mw: socketio.ASGIApp | None = None
+    sockio_mw: Middleware = None
 
     @overload
     def __init__(self) -> None: ...

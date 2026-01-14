@@ -118,6 +118,7 @@ class Namespace(BaseNamespace):
     def set_socketio(self, socketio: SocketIO) -> None:
 
         self._set_server(socketio)
+        self.sockio_mw = socketio.sockio_mw
 
     def _set_socketio(self, socketio: SocketIO) -> None:
 
