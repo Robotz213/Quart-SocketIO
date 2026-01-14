@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import traceback
+from asyncio import iscoroutine
 from functools import wraps
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import socketio
 from quart import Quart, has_request_context
@@ -30,6 +31,8 @@ type Any = any
 class SocketIO(Controller):
     reason: socketio.AsyncServer.reason = socketio.AsyncServer.reason
 
+    enviroments: ClassVar[dict[str, dict[str, Any]]] = {}
+
     async def _trigger_event(  # noqa: C901
         self,
         *args: Any | int | bool | dict[str, Any],
@@ -45,49 +48,29 @@ class SocketIO(Controller):
         sid: str = args[2]
         event: str = args[0] if len(args) > 1 and args[0] != "*" else sid
         namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
+        environ: dict[str, Any] = args[3] if len(args) > 3 else {}
 
-        def get_handler[**P, T]() -> Callable[P, T] | None:
-            filter_ = list(
-                filter(
-                    lambda x: x[0] == event and x[2] == namespace,
-                    self.config["handlers"],
-                ),
-            )
-            return filter_[0][1] if len(filter_) > 0 else None
+        if event == "connect":
+            self.enviroments[sid] = environ
 
-        handler = get_handler()
-        namespace_handler, namespace_args = self.server._get_namespace_handler(  # noqa: SLF001
-            namespace,
-            args,
-        )
+        else:
+            if isinstance(environ, dict):
+                kwargs.update(environ)
+
+        handler = self.get_handler(event=event, namespace=namespace)
+        namespace_handler = self.get_namespace_handler(namespace)
 
         if handler:
-            environ = (
-                args[3]
-                if len(args) > 3
-                else self.server.get_environ(sid, namespace)
+            environ = self.get_environ(args=args, namespace=namespace, sid=sid)
+            kwrg = self._update_kwargs(
+                sid=sid,
+                event=event,
+                handler=handler,
+                namespace=namespace,
+                environ=environ,
+                args=args,
+                kwargs=kwargs,
             )
-
-            ignore_data = [sid, event, namespace, environ]
-
-            data = {}
-            for x in args:
-                if not any(x == item for item in ignore_data):
-                    data.update({
-                        k: v
-                        for k, v in list(x.items())
-                        if isinstance(x, dict) and k not in ignore_data
-                    })
-
-            kwrg = kwargs.copy()
-            kwrg.update({
-                "event": event,
-                "namespace": namespace,
-                "sid": sid,
-                "environ": environ,
-                "data": data,
-            })
-
             if len(args) > 0:
                 for item in args:
                     if isinstance(item, str) and getattr(
@@ -99,7 +82,11 @@ class SocketIO(Controller):
                         break
 
             try:
-                return await handler(**kwrg)
+                if iscoroutine(handler):
+                    return await handler(**kwrg)
+
+                return handler(**kwrg)
+
             except TypeError as err:
                 if event != "disconnect":
                     raise QuartTypeError(
@@ -112,10 +99,17 @@ class SocketIO(Controller):
                 return await handler(**kwrg)
 
         elif namespace_handler:
-            return await namespace_handler.trigger_event(
-                *namespace_args,
-                **kwargs,
+            environ = self.get_environ(args=args, namespace=namespace, sid=sid)
+            kwrg = self._update_kwargs(
+                sid=sid,
+                handler=handler,
+                event=event,
+                namespace=namespace,
+                environ=environ,
+                args=args,
+                kwargs=kwargs,
             )
+            return await namespace_handler.trigger_event(**kwrg)
 
         return self.server.not_handled
 
@@ -124,13 +118,25 @@ class SocketIO(Controller):
         event: str,
         namespace: str | None,
         sid: str | None,
+        data: dict[str, Any],
+        handler: Callable[P, T],
         environ: dict[str, Any] | None = None,
-        *args: P.args,
-        **kwargs: P.kwargs,
     ) -> T:
         app: Quart = self.sockio_mw.quart_app
+        if event == "disconnect":
+            try:
+                if iscoroutine(handler):
+                    return await handler(**data)
 
-        handler = kwargs.pop("handler", None)
+                return handler(**data)
+
+            except SocketIOConnectionRefusedError:
+                raise  # let this error bubble up to python-socketio
+            except Exception as e:  # noqa: BLE001
+                err_more = "".join(traceback.format_exception(e))
+                err = "".join(traceback.format_exception_only(e))
+                self.config["app"].error(err)
+                return err
 
         request_ctx_sio = await self.make_request(environ=environ, sid=sid)
         async with app.request_context(request_ctx_sio):
@@ -138,7 +144,10 @@ class SocketIO(Controller):
                 await self.handle_session(request.namespace)
 
             try:
-                return await handler(*args, **kwargs)
+                if iscoroutine(handler):
+                    return await handler(**data)
+
+                return handler(**data)
 
             except SocketIOConnectionRefusedError:
                 raise  # let this error bubble up to python-socketio
@@ -234,6 +243,79 @@ class SocketIO(Controller):
             return self.on(handler.__name__, *args, **kwargs)(handler)
 
         return set_handler
+
+    def get_handler[**P, T](
+        self,
+        event: str,
+        namespace: str,
+    ) -> Callable[P, T] | None:
+        filter_ = list(
+            filter(
+                lambda x: x[0] == event and x[2] == namespace,
+                self.config["handlers"],
+            ),
+        )
+        return filter_[0][1] if len(filter_) > 0 else None
+
+    def get_namespace_handler(self, namespace: str) -> Namespace:
+
+        handler = None
+        if namespace in self.server.namespace_handlers:
+            return self.server.namespace_handlers.get(namespace)
+
+        return handler
+
+    def get_environ(
+        self,
+        args: tuple[Any],
+        sid: str,
+        namespace: str,
+    ) -> dict[str, Any]:
+
+        return self.enviroments.get(
+            sid,
+            self.server.get_environ(sid, namespace),
+        )
+
+    def _update_kwargs(
+        self,
+        sid: str,
+        event: str,
+        handler: Callable,
+        namespace: str,
+        environ: dict[str, Any],
+        args: tuple[Any],
+        kwargs: dict[str, Any],
+    ) -> dict[str, Any]:
+
+        ignore_data = [sid, event, namespace, environ, handler]
+        data = {}
+        for x in args:
+            if all(
+                (
+                    not any(x == item for item in ignore_data),
+                    isinstance(x, dict),
+                ),
+            ):
+                data.update({
+                    k: v
+                    for k, v in list(x.items())
+                    if isinstance(x, dict) and k not in ignore_data
+                })
+
+        kwrg = kwargs.copy()
+        kwrg.update({
+            "event": event,
+            "namespace": namespace,
+            "sid": sid,
+            "environ": environ,
+            "data": {
+                "data": data,
+            },
+            "handler": handler,
+        })
+
+        return kwrg
 
     def on_namespace(self, namespace_handler: Namespace) -> None:
         """Register a custom namespace handler.

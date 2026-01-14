@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import traceback
+from asyncio import iscoroutine
 from typing import TYPE_CHECKING
 
 from quart import Quart, request
@@ -45,7 +46,11 @@ class Namespace(BaseNamespace):
 
     async def trigger_event(
         self,
-        *args: Any,
+        sid: str,
+        event: str,
+        namespace: str,
+        environ: dict[str, Any],
+        data: dict[str, Any],
         **kwargs: Any,
     ) -> Any:
         """Dispatch an event to the proper handler method.
@@ -55,52 +60,81 @@ class Namespace(BaseNamespace):
         method can be overridden if special dispatching rules are needed, or if
         having a single method that catches all events is desired.
         """
-        sid: str = args[2]
-        event: str = args[0] if len(args) > 1 and args[0] != "*" else sid
-        _namespace: str = args[1] if len(args) > 2 and args[1] != "*" else sid
-
-        def get_handler[**P, T]() -> Callable[P, T]:
-            return getattr(self, "on_" + (event or ""), None)
-
-        handler = get_handler()
+        handler = self.get_handler(event=event)
         if handler:
             try:
-                return await self._handle_event(*args, **kwargs)
+                return await self._handle_event(
+                    handler=handler,
+                    sid=sid,
+                    event=event,
+                    namespace=namespace,
+                    environ=environ,
+                    data=data,
+                )
+
             except TypeError as err:
                 if event != "disconnect":
                     raise QuartSocketioError(err) from err
 
-                return await self._handle_event(*args, **kwargs)
+                return await self._handle_event(
+                    handler=handler,
+                    sid=sid,
+                    event=event,
+                    namespace=namespace,
+                    environ=environ,
+                    data=data,
+                )
+
+            except Exception as e:
+                err_more = "".join(traceback.format_exception(e))  # noqa: F841
+                err = "".join(traceback.format_exception_only(e))
+                self.socketio.app.logger.exception(err)
+                return err
 
         return self.server.not_handled
 
-    async def _handle_event(
+    async def _handle_event[**P, T](
         self,
+        data: dict[str, Any],
         event: str,
         namespace: str | None,
         sid: str | None,
         environ: dict[str, Any] | None = None,
-        *args: Any,
-        **kwargs: Any,
+        handler: Callable[P, T] | None = None,
     ) -> Any:
         app: Quart = self.sockio_mw.quart_app
-
-        handler = kwargs.pop("handler", None)
-
-        request_ctx_sio = await self.make_request(environ=environ)
-        async with app.request_context(request_ctx_sio):
-            if not self.config["manage_session"]:
-                await self.handle_session(request.namespace)
-
+        if event == "disconnect":
             try:
-                return await handler(*args, **kwargs)
+                if iscoroutine(handler):
+                    return await handler(**data)
+
+                return handler(**data)
 
             except SocketIOConnectionRefusedError:
                 raise  # let this error bubble up to python-socketio
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
+                err_more = "".join(traceback.format_exception(e))
+                err = "".join(traceback.format_exception_only(e))
+                app.logger.exception(err)
+                return err
+
+        request_ctx_sio = await self.make_request(environ=environ, sid=sid)
+        async with app.request_context(request_ctx_sio):
+            if not self.socketio.config["manage_session"]:
+                await self.handle_session(request.namespace)
+
+            try:
+                if iscoroutine(handler):
+                    return await handler(**data)
+
+                return handler(**data)
+
+            except SocketIOConnectionRefusedError:
+                raise  # let this error bubble up to python-socketio
+            except Exception as e:
                 err_more = "".join(traceback.format_exception(e))  # noqa: F841
                 err = "".join(traceback.format_exception_only(e))
-                self.config["app"].error(err)
+                app.logger.exception(err)
                 return err
 
     def _set_server(self, socketio: SocketIO) -> None:
@@ -175,3 +209,6 @@ class Namespace(BaseNamespace):
             session,
             namespace=self.namespace,
         )
+
+    def get_handler[**P, T](self, event: str) -> Callable[P, T]:
+        return getattr(self, "on_" + (event or ""), None)
