@@ -115,6 +115,10 @@ class Namespace(BaseNamespace):
         elif isinstance(socketio, AsyncServer):
             self.server = socketio
 
+    def set_socketio(self, socketio: SocketIO) -> None:
+
+        self._set_server(socketio)
+
     def emit(
         self,
         event: str,
