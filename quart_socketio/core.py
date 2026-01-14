@@ -396,7 +396,7 @@ class Controller:
             quart_test_client=quart_test_client,
         )
 
-    async def register_namespace(self, namespace_handler: Namespace) -> None:
+    def register_namespace(self, namespace_handler: Namespace) -> None:
         """Register a namespace handler object.
 
         :param namespace_handler: An instance of a :class:`Namespace` subclass
@@ -411,7 +411,7 @@ class Controller:
         self.server.register_namespace(namespace_handler)
         self.config["namespace_handlers"].append(namespace_handler)
 
-    async def unregister_namespace(self, namespace_handler: Namespace) -> None:
+    def unregister_namespace(self, namespace_handler: Namespace) -> None:
         """Unregister a namespace handler object.
 
         :param namespace_handler: An instance of a :class:`Namespace` subclass
