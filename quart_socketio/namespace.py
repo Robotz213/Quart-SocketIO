@@ -174,8 +174,8 @@ class Namespace(BaseNamespace):
     ) -> None:
         """Emit a custom event to one or more connected clients."""
         return self.socketio.emit(
-            event,
-            data,
+            event=event,
+            data=data,
             room=room,
             include_self=include_self,
             namespace=namespace or self.namespace,
@@ -193,7 +193,7 @@ class Namespace(BaseNamespace):
     ) -> None:
         """Send a message to one or more connected clients."""
         return self.socketio.send(
-            data,
+            data=data,
             room=room,
             include_self=include_self,
             namespace=namespace or self.namespace,
@@ -209,8 +209,8 @@ class Namespace(BaseNamespace):
 
     async def save_session(self, sid: str, session: SessionMixin) -> None:
         return await self.server.save_session(
-            sid,
-            session,
+            sid=sid,
+            session=session,
             namespace=self.namespace,
         )
 
