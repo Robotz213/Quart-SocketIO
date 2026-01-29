@@ -4,7 +4,9 @@ from asyncio import Event
 from collections.abc import Callable
 from typing import (
     TYPE_CHECKING,
+    Any,
     Literal,
+    Unpack,
     overload,
 )
 
@@ -43,6 +45,8 @@ if TYPE_CHECKING:
         Transports,
     )
     from quart_socketio.typing._quart import CustomJsonClass
+
+    from .typing._config import RunKwargs
 
 type Any = any
 
@@ -166,7 +170,7 @@ class Controller:
     def run(
         self,
         app: Quart = None,
-        **kwargs: type[Any],
+        **kwargs: Unpack[RunKwargs],
     ) -> None:
         self.config.update(**kwargs)
         self.server_options = self.config
@@ -381,10 +385,10 @@ class Controller:
     def test_client(
         self,
         app: Quart,
-        namespace: str | None = None,
-        query_string: str | None = None,
-        headers: dict[str, str] | None = None,
-        auth: dict[str, Any] | None = None,
+        namespace: str,
+        query_string: str,
+        headers: dict[str, str],
+        auth: dict[str, Any],
         quart_test_client: Any = None,
     ) -> SocketIOTestClient:
 

@@ -11,14 +11,14 @@ from quart_socketio.common.exceptions import raise_value_error
 if TYPE_CHECKING:
     from uvicorn import Server
 
-    from quart_socketio.typing import Kw
+    from .typing._config import RunKwargs
 
 ACCESS_FMT = (
     '%(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
 )
 
 
-def run_uvicorn(**kwargs: Kw) -> Server:
+def run_uvicorn(**kwargs: RunKwargs) -> Server:
     """Run Uvicorn server with the given keyword arguments.
 
     This function is a wrapper around `uvicorn.run`
